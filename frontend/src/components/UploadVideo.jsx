@@ -33,6 +33,7 @@ export default function UploadVideo({ guestName }) {
     const cleanGuestName = guestName.trim();
 
     if (!cleanGuestName) {
+      alert('Vul eerst je naam in voordat je een video selecteert.');
       setMessage('⚠️ Vul eerst je naam in');
       e.target.value = '';
       return;
@@ -61,6 +62,7 @@ export default function UploadVideo({ guestName }) {
     const cleanGuestName = guestName.trim().replace(/\s+/g, ' ');
 
     if (!cleanGuestName) {
+      alert('Vul eerst je naam in voordat je uploadt.');
       setMessage('⚠️ Vul eerst je naam in');
       return;
     }
@@ -116,7 +118,17 @@ export default function UploadVideo({ guestName }) {
           style={{ display: 'none' }}
         />
 
-        <label htmlFor="video-input" className="file-label">
+        <label
+          htmlFor="video-input"
+          className="file-label"
+          onClick={(e) => {
+            if (!guestName.trim()) {
+              e.preventDefault();
+              alert('Vul eerst je naam in voordat je een video selecteert.');
+              setMessage('⚠️ Vul eerst je naam in');
+            }
+          }}
+        >
           🎬 Selecteer video
         </label>
 

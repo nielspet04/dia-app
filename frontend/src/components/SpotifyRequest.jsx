@@ -34,6 +34,7 @@ export default function SpotifyRequest({ guestName }) {
     const cleanGuestName = guestName.trim();
 
     if (!cleanGuestName) {
+      alert('Vul eerst je naam in voordat je een nummer zoekt.');
       setMessage('⚠️ Vul eerst je naam in');
       return;
     }
@@ -63,6 +64,7 @@ export default function SpotifyRequest({ guestName }) {
     const cleanGuestName = guestName.trim().replace(/\s+/g, ' ');
 
     if (!cleanGuestName) {
+      alert('Vul eerst je naam in voordat je een nummer toevoegt.');
       setMessage('⚠️ Vul eerst je naam in');
       return;
     }
@@ -120,9 +122,9 @@ export default function SpotifyRequest({ guestName }) {
             placeholder="Zoek een nummernaam of artiest..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            disabled={searching || remainingRequests <= 0 || !guestName.trim()}
+            disabled={searching || remainingRequests <= 0}
           />
-          <button type="submit" disabled={searching || remainingRequests <= 0 || !guestName.trim()}>
+          <button type="submit" disabled={searching || remainingRequests <= 0}>
             {searching ? '🔍 Zoeken...' : '🔍 Zoeken'}
           </button>
         </form>

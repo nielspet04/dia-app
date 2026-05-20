@@ -19,3 +19,8 @@ export const getSavedGuestName = () => localStorage.getItem(GUEST_NAME_STORAGE_K
 export const saveGuestName = (guestName) => {
   localStorage.setItem(GUEST_NAME_STORAGE_KEY, guestName);
 };
+
+export const resetUploadSession = () => {
+  localStorage.removeItem(SESSION_STORAGE_KEY);
+  return getUploadSessionId();
+};

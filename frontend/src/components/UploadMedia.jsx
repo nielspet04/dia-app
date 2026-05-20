@@ -33,6 +33,7 @@ export default function UploadMedia({ guestName }) {
     const cleanGuestName = guestName.trim();
 
     if (!cleanGuestName) {
+      alert('Vul eerst je naam in voordat je foto\'s selecteert.');
       setMessage('⚠️ Vul eerst je naam in');
       e.target.value = '';
       return;
@@ -68,6 +69,7 @@ export default function UploadMedia({ guestName }) {
     const cleanGuestName = guestName.trim().replace(/\s+/g, ' ');
 
     if (!cleanGuestName) {
+      alert('Vul eerst je naam in voordat je uploadt.');
       setMessage('⚠️ Vul eerst je naam in');
       return;
     }
@@ -127,7 +129,17 @@ export default function UploadMedia({ guestName }) {
           style={{ display: 'none' }}
         />
 
-        <label htmlFor="file-input" className="file-label">
+        <label
+          htmlFor="file-input"
+          className="file-label"
+          onClick={(e) => {
+            if (!guestName.trim()) {
+              e.preventDefault();
+              alert('Vul eerst je naam in voordat je foto\'s selecteert.');
+              setMessage('⚠️ Vul eerst je naam in');
+            }
+          }}
+        >
           📁 Selecteer bestanden
         </label>
 

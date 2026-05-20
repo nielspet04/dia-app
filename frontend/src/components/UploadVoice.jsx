@@ -57,6 +57,7 @@ export default function UploadVoice({ guestName }) {
     const cleanGuestName = guestName.trim();
 
     if (!cleanGuestName) {
+      alert('Vul eerst je naam in voordat je een spraakbericht opneemt.');
       setMessage('⚠️ Vul eerst je naam in');
       return;
     }
@@ -119,6 +120,7 @@ export default function UploadVoice({ guestName }) {
     const cleanGuestName = guestName.trim().replace(/\s+/g, ' ');
 
     if (!cleanGuestName) {
+      alert('Vul eerst je naam in voordat je uploadt.');
       setMessage('⚠️ Vul eerst je naam in');
       return;
     }
@@ -171,7 +173,7 @@ export default function UploadVoice({ guestName }) {
               type="button"
               className="record-btn"
               onClick={startRecording}
-              disabled={uploading || remainingUploads <= 0 || !guestName.trim()}
+              disabled={uploading || remainingUploads <= 0}
             >
               🎙️ Start opname
             </button>

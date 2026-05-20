@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import './App.css';
 import UploadMedia from './components/UploadMedia';
 import UploadVideo from './components/UploadVideo';
 import UploadVoice from './components/UploadVoice';
 import SpotifyRequest from './components/SpotifyRequest';
 import AdminGallery from './components/AdminGallery';
-import { getSavedGuestName, MAX_GUEST_NAME_LENGTH, saveGuestName } from './uploadSession';
+import { getSavedGuestName, MAX_GUEST_NAME_LENGTH, resetUploadSession, saveGuestName } from './uploadSession';
 
 function App() {
   const [activeTab, setActiveTab] = useState('upload');
@@ -14,6 +14,9 @@ function App() {
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [adminAuth, setAdminAuth] = useState('');
   const [guestName, setGuestName] = useState(getSavedGuestName);
+  const guestNameInputRef = useRef(null);
+
+  const hasGuestName = guestName.trim().length > 0;
 
   const handleAdminLogin = (password) => {
     // Simple password check - change this to your desired password
@@ -25,6 +28,28 @@ function App() {
     } else {
       alert('Onjuist wachtwoord');
     }
+  };
+
+  const requireGuestName = (nextTab) => {
+    if (!hasGuestName) {
+      alert('Vul eerst je naam in voordat je verdergaat.');
+      guestNameInputRef.current?.focus();
+      return;
+    }
+
+    setActiveTab(nextTab);
+  };
+
+  const handleResetCurrentDevice = () => {
+    const confirmed = window.confirm('Nieuwe gast-sessie maken voor dit apparaat? Hiermee kun je vanaf deze browser opnieuw testen.');
+    if (!confirmed) return;
+
+    resetUploadSession();
+    setActiveTab('upload');
+    setAdminUnlocked(false);
+    setAdminMode(false);
+    setAdminAuth('');
+    alert('Nieuwe gast-sessie aangemaakt voor dit apparaat.');
   };
 
   return (
@@ -58,6 +83,12 @@ function App() {
       {adminMode && adminUnlocked ? (
         <>
           <AdminGallery adminPassword={adminAuth} />
+          <button
+            onClick={handleResetCurrentDevice}
+            className="admin-reset-btn"
+          >
+            Nieuwe testsessie voor dit apparaat
+          </button>
           <button 
             onClick={() => { setAdminUnlocked(false); setAdminMode(false); setAdminAuth(''); }}
             className="logout-btn"
@@ -73,6 +104,7 @@ function App() {
             </label>
             <input
               id="guest-name"
+              ref={guestNameInputRef}
               className="guest-name-input"
               type="text"
               value={guestName}
@@ -88,26 +120,30 @@ function App() {
 
           <nav className="tabs">
             <button 
-              className={`tab ${activeTab === 'upload' ? 'active' : ''}`}
-              onClick={() => setActiveTab('upload')}
+              className={`tab ${activeTab === 'upload' ? 'active' : ''} ${!hasGuestName ? 'disabled' : ''}`}
+              onClick={() => requireGuestName('upload')}
+              aria-disabled={!hasGuestName}
             >
               📸 Foto's
             </button>
             <button
-              className={`tab ${activeTab === 'video' ? 'active' : ''}`}
-              onClick={() => setActiveTab('video')}
+              className={`tab ${activeTab === 'video' ? 'active' : ''} ${!hasGuestName ? 'disabled' : ''}`}
+              onClick={() => requireGuestName('video')}
+              aria-disabled={!hasGuestName}
             >
               🎬 Video
             </button>
             <button 
-              className={`tab ${activeTab === 'voice' ? 'active' : ''}`}
-              onClick={() => setActiveTab('voice')}
+              className={`tab ${activeTab === 'voice' ? 'active' : ''} ${!hasGuestName ? 'disabled' : ''}`}
+              onClick={() => requireGuestName('voice')}
+              aria-disabled={!hasGuestName}
             >
               🎙️ Bericht
             </button>
             <button 
-              className={`tab ${activeTab === 'spotify' ? 'active' : ''}`}
-              onClick={() => setActiveTab('spotify')}
+              className={`tab ${activeTab === 'spotify' ? 'active' : ''} ${!hasGuestName ? 'disabled' : ''}`}
+              onClick={() => requireGuestName('spotify')}
+              aria-disabled={!hasGuestName}
             >
               🎵 Request Nummer
             </button>
