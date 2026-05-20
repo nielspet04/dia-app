@@ -503,6 +503,12 @@ body::after {
   margin-bottom: 0;
 }
 
+.file-label:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .file-label:hover,
 .record-btn:hover:not(:disabled),
 .upload-btn:hover:not(:disabled),

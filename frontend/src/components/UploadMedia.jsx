@@ -156,6 +156,7 @@ export default function UploadMedia({ guestName }) {
           <label
             htmlFor="camera-input"
             className="file-label"
+            disabled={uploading || remainingUploads <= 0 || !guestName.trim()}
             onClick={(e) => {
               if (!guestName.trim()) {
                 e.preventDefault();
@@ -170,6 +171,7 @@ export default function UploadMedia({ guestName }) {
           <label
             htmlFor="file-input"
             className="file-label"
+            disabled={uploading || remainingUploads <= 0 || !guestName.trim()}
             onClick={(e) => {
               if (!guestName.trim()) {
                 e.preventDefault();
