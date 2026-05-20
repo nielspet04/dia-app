@@ -11,11 +11,12 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const HOST = process.env.HOST || '0.0.0.0';
 
 // server.js
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
-    ? ['http://5.22.208.187', 'https://5.22.208.187'] 
+    ? ['http://5.22.208.187', 'http://5.22.208.187:5173', 'https://5.22.208.187'] 
     : 'http://localhost:5173',
   credentials: true
 };
@@ -192,21 +193,21 @@ if (process.env.NODE_ENV === 'production') {
       cert: fs.readFileSync(certPath, 'utf8'),
       key: fs.readFileSync(keyPath, 'utf8')
     };
-    https.createServer(credentials, app).listen(PORT, () => {
+    https.createServer(credentials, app).listen(PORT, HOST, () => {
       console.log(`🎉 Backend server running on https://5.22.208.187:${PORT}`);
       console.log(`Database: sqlite3 @ ./trouw.db`);
     });
   } else {
     // Fallback to HTTP if certs don't exist
-    app.listen(PORT, () => {
+    app.listen(PORT, HOST, () => {
       console.log(`🎉 Backend server running on http://5.22.208.187:${PORT}`);
       console.log(`ℹ️ For camera access, set up HTTPS with SSL certificates`);
       console.log(`Database: sqlite3 @ ./trouw.db`);
     });
   }
 } else {
-  app.listen(PORT, () => {
-    console.log(`🎉 Backend server running on http://localhost:${PORT}`);
+  app.listen(PORT, HOST, () => {
+    console.log(`🎉 Backend server running on http://${HOST}:${PORT}`);
     console.log(`Database: sqlite3 @ ./trouw.db`);
   });
 }

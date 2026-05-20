@@ -1,20 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-
-const API_BASE = 'http://localhost:5000/api';
+import { API_BASE, MEDIA_BASE } from '../config';
 
 export default function AdminGallery() {
   const [uploads, setUploads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
 
-  useEffect(() => {
-    fetchUploads();
-    const interval = setInterval(fetchUploads, 5000); // Refresh every 5 seconds
-    return () => clearInterval(interval);
-  }, []);
-
-  const fetchUploads = async () => {
+  const fetchUploads = useCallback(async () => {
     try {
       const response = await axios.get(`${API_BASE}/uploads`);
       setUploads(response.data || []);
@@ -23,7 +16,13 @@ export default function AdminGallery() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    Promise.resolve().then(fetchUploads);
+    const interval = setInterval(fetchUploads, 5000); // Refresh every 5 seconds
+    return () => clearInterval(interval);
+  }, [fetchUploads]);
 
   const getFileType = (filename) => {
     const ext = filename.split('.').pop().toLowerCase();
@@ -81,7 +80,7 @@ export default function AdminGallery() {
             return (
               <div key={upload.id} className="gallery-item">
                 <a 
-                  href={`http://5.22.208.187:5000${upload.filepath}`} 
+                  href={`${MEDIA_BASE}${upload.filepath}`} 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="gallery-link"
@@ -89,7 +88,7 @@ export default function AdminGallery() {
                   <div className="gallery-media">
                     {isImage && (
                       <img 
-                        src={`http://5.22.208.187:5000${upload.filepath}`} 
+                        src={`${MEDIA_BASE}${upload.filepath}`} 
                         alt="Upload"
                         loading="lazy"
                       />

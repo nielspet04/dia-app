@@ -21,7 +21,7 @@ export default function QRScanner({ onSuccess }) {
         onSuccess(decodedText);
         qrscanner.clear();
       },
-      (error) => {
+      () => {
         // Ignore errors during scanning
       }
     );
