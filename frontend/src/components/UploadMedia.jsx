@@ -28,6 +28,8 @@ export default function UploadMedia({ guestName }) {
     loadUploadCount();
   }, [sessionId]);
 
+  const getFileKey = (file) => `${file.name}-${file.size}-${file.lastModified}`;
+
   const handleFileSelect = (e) => {
     const selectedFiles = Array.from(e.target.files);
     const cleanGuestName = guestName.trim();
@@ -45,12 +47,6 @@ export default function UploadMedia({ guestName }) {
       return;
     }
 
-    if (selectedFiles.length > remainingUploads) {
-      setMessage(`⚠️ Je kunt nog maar ${remainingUploads} foto${remainingUploads === 1 ? '' : '\'s'} uploaden`);
-      e.target.value = '';
-      return;
-    }
-
     // Check file types - only images
     const validTypes = ['image/jpeg', 'image/png', 'image/gif'];
     const invalidFiles = selectedFiles.filter(f => !validTypes.includes(f.type));
@@ -61,8 +57,25 @@ export default function UploadMedia({ guestName }) {
       return;
     }
 
-    setFiles(selectedFiles);
+    const existingFileKeys = new Set(files.map(getFileKey));
+    const uniqueNewFiles = selectedFiles.filter(file => !existingFileKeys.has(getFileKey(file)));
+    const allowedNewFileCount = remainingUploads - files.length;
+
+    if (allowedNewFileCount <= 0) {
+      setMessage(`⚠️ Je hebt al ${files.length} foto${files.length === 1 ? '' : '\'s'} geselecteerd`);
+      e.target.value = '';
+      return;
+    }
+
+    if (uniqueNewFiles.length > allowedNewFileCount) {
+      setMessage(`⚠️ Je kunt nog maar ${allowedNewFileCount} extra foto${allowedNewFileCount === 1 ? '' : '\'s'} selecteren`);
+      e.target.value = '';
+      return;
+    }
+
+    setFiles((currentFiles) => [...currentFiles, ...uniqueNewFiles]);
     setMessage('');
+    e.target.value = '';
   };
 
   const handleUpload = async () => {
