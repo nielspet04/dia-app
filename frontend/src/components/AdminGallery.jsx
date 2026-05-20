@@ -4,9 +4,12 @@ import { API_BASE, MEDIA_BASE } from '../config';
 
 export default function AdminGallery({ adminPassword }) {
   const [uploads, setUploads] = useState([]);
+  const [songRequests, setSongRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingSongs, setLoadingSongs] = useState(true);
   const [filter, setFilter] = useState('all');
   const [deletingId, setDeletingId] = useState(null);
+  const [deletingSongId, setDeletingSongId] = useState(null);
   const [message, setMessage] = useState('');
 
   const fetchUploads = useCallback(async () => {
@@ -20,11 +23,29 @@ export default function AdminGallery({ adminPassword }) {
     }
   }, []);
 
+  const fetchSongRequests = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/spotify/requests`);
+      setSongRequests(response.data || []);
+    } catch (error) {
+      console.error('Failed to fetch Spotify requests:', error);
+    } finally {
+      setLoadingSongs(false);
+    }
+  }, []);
+
   useEffect(() => {
-    Promise.resolve().then(fetchUploads);
-    const interval = setInterval(fetchUploads, 5000); // Refresh every 5 seconds
+    Promise.resolve().then(() => {
+      fetchUploads();
+      fetchSongRequests();
+    });
+
+    const interval = setInterval(() => {
+      fetchUploads();
+      fetchSongRequests();
+    }, 5000); // Refresh every 5 seconds
     return () => clearInterval(interval);
-  }, [fetchUploads]);
+  }, [fetchSongRequests, fetchUploads]);
 
   const getFileType = (filename) => {
     const ext = filename.split('.').pop().toLowerCase();
@@ -65,8 +86,61 @@ export default function AdminGallery({ adminPassword }) {
     }
   };
 
+  const handleDeleteSong = async (songRequest) => {
+    const confirmed = window.confirm(`"${songRequest.track_name}" uit de playlist verwijderen?`);
+    if (!confirmed) return;
+
+    setDeletingSongId(songRequest.id);
+    setMessage('');
+
+    try {
+      await axios.delete(`${API_BASE}/spotify/requests/${songRequest.id}`, {
+        headers: { 'x-admin-password': adminPassword }
+      });
+      setSongRequests((currentRequests) => currentRequests.filter((item) => item.id !== songRequest.id));
+      setMessage('Nummer verwijderd uit playlist');
+    } catch (error) {
+      setMessage(`Nummer verwijderen mislukt: ${error.response?.data?.error || error.message}`);
+      console.error('Failed to delete Spotify request:', error);
+    } finally {
+      setDeletingSongId(null);
+    }
+  };
+
   return (
     <div className="admin-gallery">
+      <section className="admin-song-panel">
+        <h2>Aangevraagde nummers</h2>
+        <p className="gallery-subtitle">{songRequests.length} nummers</p>
+
+        {loadingSongs ? (
+          <p className="admin-empty-state">Laden...</p>
+        ) : songRequests.length === 0 ? (
+          <p className="admin-empty-state">Nog geen nummers aangevraagd...</p>
+        ) : (
+          <div className="admin-song-list">
+            {songRequests.map((songRequest, idx) => (
+              <div key={songRequest.id} className="admin-song-item">
+                <span className="order">{idx + 1}.</span>
+                <div className="request-info">
+                  <p className="request-track">{songRequest.track_name}</p>
+                  <p className="request-artist">van {songRequest.artist_name}</p>
+                  <p className="request-artist">aangevraagd door {songRequest.guest_name || 'Onbekend'}</p>
+                </div>
+                <button
+                  type="button"
+                  className="delete-upload-btn admin-song-delete"
+                  onClick={() => handleDeleteSong(songRequest)}
+                  disabled={deletingSongId === songRequest.id}
+                >
+                  {deletingSongId === songRequest.id ? 'Verwijderen...' : 'Verwijderen'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
       <h2>Galerij - Alle uploads</h2>
       <p className="gallery-subtitle">{filteredUploads.length} bestanden</p>
       {message && <p className="gallery-message">{message}</p>}

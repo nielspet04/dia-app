@@ -640,6 +640,46 @@ app.get('/api/spotify/requests', (req, res) => {
   });
 });
 
+app.delete('/api/spotify/requests/:id', (req, res) => {
+  if (req.get('x-admin-password') !== ADMIN_PASSWORD) {
+    return res.status(401).json({ error: 'Niet bevoegd' });
+  }
+
+  const requestId = Number(req.params.id);
+
+  if (!Number.isInteger(requestId)) {
+    return res.status(400).json({ error: 'Ongeldig nummer id' });
+  }
+
+  db.get('SELECT * FROM spotify_requests WHERE id = ?', [requestId], async (err, requestRow) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!requestRow) return res.status(404).json({ error: 'Nummer niet gevonden' });
+
+    const trackUri = requestRow.track_uri || (requestRow.track_id ? `spotify:track:${requestRow.track_id}` : '');
+
+    try {
+      if (requestRow.added_to_playlist && trackUri) {
+        const config = requireSpotifyConfig();
+        await spotifyApiFetch(
+          `https://api.spotify.com/v1/playlists/${config.playlistId}/tracks`,
+          {
+            method: 'DELETE',
+            body: JSON.stringify({ tracks: [{ uri: trackUri }] })
+          }
+        );
+      }
+    } catch (spotifyErr) {
+      console.error('Spotify delete track error:', spotifyErr);
+      return res.status(500).json({ error: spotifyErr.message });
+    }
+
+    db.run('DELETE FROM spotify_requests WHERE id = ?', [requestId], (deleteErr) => {
+      if (deleteErr) return res.status(500).json({ error: deleteErr.message });
+      res.json({ success: true, message: 'Nummer verwijderd uit playlist' });
+    });
+  });
+});
+
 // Spotify: Search tracks
 app.get('/api/spotify/search', async (req, res) => {
   try {
