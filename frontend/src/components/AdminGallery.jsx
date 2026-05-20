@@ -67,7 +67,7 @@ export default function AdminGallery({ adminPassword }) {
 
   return (
     <div className="admin-gallery">
-      <h2>📸 Galerij - Alle uploads</h2>
+      <h2>Galerij - Alle uploads</h2>
       <p className="gallery-subtitle">{filteredUploads.length} bestanden</p>
       {message && <p className="gallery-message">{message}</p>}
 
@@ -100,7 +100,7 @@ export default function AdminGallery({ adminPassword }) {
 
       {loading ? (
         <p style={{ textAlign: 'center', color: 'var(--muted)', padding: '40px 0' }}>
-          ⏳ Laden...
+          Laden...
         </p>
       ) : filteredUploads.length === 0 ? (
         <p style={{ textAlign: 'center', color: 'var(--muted)', padding: '40px 0', fontStyle: 'italic' }}>
@@ -139,7 +139,7 @@ export default function AdminGallery({ adminPassword }) {
                     )}
                     {isAudio && (
                       <div className="audio-preview">
-                        <span>🎙️</span>
+                        <span>Spraakbericht</span>
                         <audio
                           src={`${MEDIA_BASE}${upload.filepath}`}
                           controls

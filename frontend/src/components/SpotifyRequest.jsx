@@ -113,7 +113,7 @@ export default function SpotifyRequest({ guestName }) {
   return (
     <div className="spotify-request">
       <div className="search-box">
-        <h3>🎵 Request een nummer</h3>
+        <h3>Request een nummer</h3>
         <p className="upload-hint">Nog {remainingRequests} van 1 nummer beschikbaar</p>
 
         <form onSubmit={handleSearch} className="search-form">
@@ -125,7 +125,7 @@ export default function SpotifyRequest({ guestName }) {
             disabled={searching || remainingRequests <= 0}
           />
           <button type="submit" disabled={searching || remainingRequests <= 0}>
-            {searching ? '🔍 Zoeken...' : '🔍 Zoeken'}
+            {searching ? 'Zoeken...' : 'Zoeken'}
           </button>
         </form>
 
@@ -149,7 +149,7 @@ export default function SpotifyRequest({ guestName }) {
                   className="add-btn"
                   disabled={addingTrackId === track.id || remainingRequests <= 0}
                 >
-                  {addingTrackId === track.id ? 'Toevoegen...' : '➕ Toevoegen'}
+                  {addingTrackId === track.id ? 'Toevoegen...' : 'Toevoegen'}
                 </button>
               </div>
             ))}
@@ -160,7 +160,7 @@ export default function SpotifyRequest({ guestName }) {
       <div className="requests-box">
         <h3>📋 Aangevraagde nummers</h3>
         <button onClick={loadRequests} className="refresh-btn">
-          {loadingRequests ? '⏳ Laden...' : '🔄 Vernieuwen'}
+          {loadingRequests ? 'Laden...' : 'Vernieuwen'}
         </button>
 
         {requests.length > 0 ? (
@@ -173,7 +173,7 @@ export default function SpotifyRequest({ guestName }) {
                   <p className="request-artist">van {req.artist_name}</p>
                   <p className="request-artist">aangevraagd door {req.guest_name || 'Onbekend'}</p>
                 </div>
-                <span className={req.added_to_playlist ? '✅' : '⏳'}>
+                <span className="request-status">
                   {req.added_to_playlist ? 'Toegevoegd' : 'In wachtrij'}
                 </span>
               </div>

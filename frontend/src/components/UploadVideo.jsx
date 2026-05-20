@@ -106,7 +106,7 @@ export default function UploadVideo({ guestName }) {
   return (
     <div className="upload-media">
       <div className="upload-box">
-        <h3>🎬 Upload je video</h3>
+        <h3>Upload je video</h3>
         <p className="upload-hint">Nog {remainingUploads} van {MAX_VIDEO_UPLOADS} video beschikbaar</p>
 
         <input
@@ -129,14 +129,14 @@ export default function UploadVideo({ guestName }) {
             }
           }}
         >
-          🎬 Selecteer video
+          Selecteer video
         </label>
 
         {video && (
           <div className="file-list">
             <h4>Geselecteerde video:</h4>
             <ul>
-              <li>🎬 {video.name}</li>
+              <li>{video.name}</li>
             </ul>
           </div>
         )}
@@ -146,7 +146,7 @@ export default function UploadVideo({ guestName }) {
           disabled={uploading || !video || remainingUploads <= 0 || !guestName.trim()}
           className="upload-btn"
         >
-          {uploading ? `⏳ Uploading... ${progress}%` : '🚀 Upload video'}
+          {uploading ? `Uploading... ${progress}%` : 'Upload video'}
         </button>
 
         {message && <p className="message">{message}</p>}

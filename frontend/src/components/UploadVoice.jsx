@@ -164,7 +164,7 @@ export default function UploadVoice({ guestName }) {
   return (
     <div className="upload-media">
       <div className="upload-box">
-        <h3>🎙️ Spreek een bericht in</h3>
+        <h3>Spreek een bericht in</h3>
         <p className="upload-hint">Nog {remainingUploads} van {MAX_AUDIO_UPLOADS} spraakbericht beschikbaar</p>
 
         <div className="record-controls">
@@ -175,11 +175,11 @@ export default function UploadVoice({ guestName }) {
               onClick={startRecording}
               disabled={uploading || remainingUploads <= 0}
             >
-              🎙️ Start opname
+              Start opname
             </button>
           ) : (
             <button type="button" className="record-btn recording" onClick={stopRecording}>
-              ⏹️ Stop opname
+              Stop opname
             </button>
           )}
         </div>
@@ -198,7 +198,7 @@ export default function UploadVoice({ guestName }) {
           disabled={uploading || !audioBlob || remainingUploads <= 0 || !guestName.trim()}
           className="upload-btn"
         >
-          {uploading ? `⏳ Uploading... ${progress}%` : '🚀 Upload spraakbericht'}
+          {uploading ? `Uploading... ${progress}%` : 'Upload spraakbericht'}
         </button>
 
         {message && <p className="message">{message}</p>}

@@ -55,13 +55,14 @@ function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>🎉 Trouwfeest App</h1>
-        <p>Deel fotos, video's en request nummers!</p>
+        <h1>Trouw van Guy en Ria</h1>
+        <p>Deel je foto's, video, spraakbericht en favoriete nummer.</p>
         <button 
           onClick={() => setAdminMode(!adminMode)}
-          style={{ marginTop: '15px', fontSize: '0.8em', opacity: 0.6 }}
+          className="admin-toggle"
+          aria-label="Admin"
         >
-          👤
+          Beheer
         </button>
       </header>
 
@@ -124,28 +125,28 @@ function App() {
               onClick={() => requireGuestName('upload')}
               aria-disabled={!hasGuestName}
             >
-              📸 Foto's
+              Foto's
             </button>
             <button
               className={`tab ${activeTab === 'video' ? 'active' : ''} ${!hasGuestName ? 'disabled' : ''}`}
               onClick={() => requireGuestName('video')}
               aria-disabled={!hasGuestName}
             >
-              🎬 Video
+              Video
             </button>
             <button 
               className={`tab ${activeTab === 'voice' ? 'active' : ''} ${!hasGuestName ? 'disabled' : ''}`}
               onClick={() => requireGuestName('voice')}
               aria-disabled={!hasGuestName}
             >
-              🎙️ Bericht
+              Bericht
             </button>
             <button 
               className={`tab ${activeTab === 'spotify' ? 'active' : ''} ${!hasGuestName ? 'disabled' : ''}`}
               onClick={() => requireGuestName('spotify')}
               aria-disabled={!hasGuestName}
             >
-              🎵 Request Nummer
+              Request nummer
             </button>
           </nav>
 

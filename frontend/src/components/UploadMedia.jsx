@@ -116,7 +116,7 @@ export default function UploadMedia({ guestName }) {
   return (
     <div className="upload-media">
       <div className="upload-box">
-        <h3>📸 Upload je foto's</h3>
+        <h3>Upload je foto's</h3>
         <p className="upload-hint">Nog {remainingUploads} van {MAX_UPLOADS} foto's beschikbaar</p>
 
         <input
@@ -151,7 +151,7 @@ export default function UploadMedia({ guestName }) {
               }
             }}
           >
-            📷 Maak foto
+            Maak foto
           </label>
 
           <label
@@ -165,7 +165,7 @@ export default function UploadMedia({ guestName }) {
               }
             }}
           >
-            📁 Kies foto's
+            Kies foto's
           </label>
         </div>
 
@@ -175,7 +175,7 @@ export default function UploadMedia({ guestName }) {
             <ul>
               {Array.from(files).map((file, idx) => (
                 <li key={idx}>
-                  {file.type.startsWith('image') ? '🖼️' : '🎬'} {file.name}
+                  {file.name}
                 </li>
               ))}
             </ul>
@@ -187,7 +187,7 @@ export default function UploadMedia({ guestName }) {
           disabled={uploading || files.length === 0 || remainingUploads <= 0 || !guestName.trim()}
           className="upload-btn"
         >
-          {uploading ? `⏳ Uploading... ${progress}%` : '🚀 Upload'}
+          {uploading ? `Uploading... ${progress}%` : 'Upload'}
         </button>
 
         {message && <p className="message">{message}</p>}
