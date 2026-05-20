@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
 import { API_BASE } from '../config';
 import { getUploadSessionId, saveGuestName } from '../uploadSession';
@@ -13,6 +13,18 @@ export default function SpotifyRequest({ guestName }) {
   const [loadingRequests, setLoadingRequests] = useState(false);
   const [sessionId] = useState(getUploadSessionId);
   const [remainingRequests, setRemainingRequests] = useState(1);
+
+  const loadRequests = useCallback(async () => {
+    setLoadingRequests(true);
+    try {
+      const response = await axios.get(`${API_BASE}/spotify/requests`);
+      setRequests(response.data);
+    } catch (error) {
+      console.error('Failed to load requests:', error);
+    } finally {
+      setLoadingRequests(false);
+    }
+  }, []);
 
   useEffect(() => {
     const loadRequestCount = async () => {
@@ -29,18 +41,39 @@ export default function SpotifyRequest({ guestName }) {
     loadRequestCount();
   }, [sessionId]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadInitialRequests = async () => {
+      try {
+        const response = await axios.get(`${API_BASE}/spotify/requests`);
+        if (isMounted) {
+          setRequests(response.data);
+        }
+      } catch (error) {
+        console.error('Failed to load requests:', error);
+      }
+    };
+
+    loadInitialRequests();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const handleSearch = async (e) => {
     e.preventDefault();
     const cleanGuestName = guestName.trim();
 
     if (!cleanGuestName) {
       alert('Vul eerst je naam in voordat je een nummer zoekt.');
-      setMessage('⚠️ Vul eerst je naam in');
+      setMessage('Vul eerst je naam in');
       return;
     }
 
     if (remainingRequests <= 0) {
-      setMessage('⚠️ Je hebt al 1 nummer aangevraagd');
+      setMessage('Je hebt al 1 nummer aangevraagd');
       return;
     }
 
@@ -54,7 +87,7 @@ export default function SpotifyRequest({ guestName }) {
       setResults(response.data || []);
       setMessage(response.data?.length ? '' : 'Geen resultaten gevonden');
     } catch (error) {
-      setMessage(`❌ Zoeken mislukt: ${error.response?.data?.error || error.message}`);
+      setMessage(`Zoeken mislukt: ${error.response?.data?.error || error.message}`);
     } finally {
       setSearching(false);
     }
@@ -81,7 +114,7 @@ export default function SpotifyRequest({ guestName }) {
         guestName: cleanGuestName
       });
 
-      setMessage(`✅ "${track.name}" toegevoegd aan playlist!`);
+      setMessage(`"${track.name}" toegevoegd aan playlist!`);
       setRemainingRequests(0);
       setSearchQuery('');
       setResults([]);
@@ -91,22 +124,10 @@ export default function SpotifyRequest({ guestName }) {
         setMessage('');
       }, 2000);
     } catch (error) {
-      setMessage(`❌ Kon nummer niet toevoegen: ${error.response?.data?.error || error.message}`);
+      setMessage(`Kon nummer niet toevoegen: ${error.response?.data?.error || error.message}`);
       console.error('Request error:', error);
     } finally {
       setAddingTrackId('');
-    }
-  };
-
-  const loadRequests = async () => {
-    setLoadingRequests(true);
-    try {
-      const response = await axios.get(`${API_BASE}/spotify/requests`);
-      setRequests(response.data);
-    } catch (error) {
-      console.error('Failed to load requests:', error);
-    } finally {
-      setLoadingRequests(false);
     }
   };
 
@@ -158,7 +179,7 @@ export default function SpotifyRequest({ guestName }) {
       </div>
 
       <div className="requests-box">
-        <h3>📋 Aangevraagde nummers</h3>
+        <h3>Aangevraagde nummers</h3>
         <button onClick={loadRequests} className="refresh-btn">
           {loadingRequests ? 'Laden...' : 'Vernieuwen'}
         </button>

@@ -6,6 +6,8 @@
   --linen: #d9d5ba;
   --sage: #798a72;
   --sage-deep: #54624b;
+  --petal: rgba(248, 244, 235, 0.92);
+  --petal-shadow: rgba(196, 165, 105, 0.28);
   --text: #3f443a;
   --muted: #717565;
   --border: rgba(84, 98, 75, 0.22);
@@ -25,6 +27,10 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background:
+    radial-gradient(circle at 7% 34%, rgba(208, 177, 127, 0.12) 0 0.12rem, transparent 0.16rem),
+    radial-gradient(circle at 93% 31%, rgba(196, 165, 105, 0.16) 0 0.13rem, transparent 0.17rem),
+    radial-gradient(circle at 18% 76%, rgba(208, 177, 127, 0.12) 0 0.12rem, transparent 0.16rem),
+    radial-gradient(circle at 82% 82%, rgba(196, 165, 105, 0.12) 0 0.12rem, transparent 0.16rem),
     radial-gradient(circle at 10% 8%, rgba(208, 177, 127, 0.22), transparent 18rem),
     radial-gradient(circle at 88% 12%, rgba(121, 138, 114, 0.18), transparent 18rem),
     linear-gradient(180deg, var(--paper) 0%, #f2eadc 100%);
@@ -43,6 +49,11 @@ body::after {
   pointer-events: none;
   opacity: 0.42;
   background:
+    radial-gradient(circle at 140px 36px, var(--petal) 0 7px, transparent 8px),
+    radial-gradient(circle at 154px 48px, var(--petal) 0 7px, transparent 8px),
+    radial-gradient(circle at 140px 60px, var(--petal) 0 7px, transparent 8px),
+    radial-gradient(circle at 126px 48px, var(--petal) 0 7px, transparent 8px),
+    radial-gradient(circle at 140px 48px, var(--gold-deep) 0 4px, transparent 5px),
     radial-gradient(ellipse at 50% 50%, rgba(84, 98, 75, 0.78) 0 33%, transparent 35%) 32px 20px / 72px 96px no-repeat,
     radial-gradient(ellipse at 50% 50%, rgba(121, 138, 114, 0.55) 0 33%, transparent 35%) 100px 70px / 70px 94px no-repeat,
     radial-gradient(ellipse at 50% 50%, rgba(84, 98, 75, 0.62) 0 33%, transparent 35%) 36px 150px / 76px 104px no-repeat,
@@ -121,6 +132,27 @@ body::after {
   inset: 10px 18px auto;
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--gold), transparent);
+}
+
+.header::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 116px;
+  height: 24px;
+  transform: translateX(-50%);
+  opacity: 0.9;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 48px 10px, var(--petal) 0 6px, transparent 7px),
+    radial-gradient(circle at 60px 6px, var(--petal) 0 6px, transparent 7px),
+    radial-gradient(circle at 72px 10px, var(--petal) 0 6px, transparent 7px),
+    radial-gradient(circle at 60px 15px, var(--petal) 0 6px, transparent 7px),
+    radial-gradient(circle at 60px 10px, var(--gold-deep) 0 3px, transparent 4px),
+    radial-gradient(ellipse at 20px 14px, rgba(121, 138, 114, 0.58) 0 45%, transparent 48%),
+    radial-gradient(ellipse at 96px 14px, rgba(121, 138, 114, 0.58) 0 45%, transparent 48%);
+  filter: drop-shadow(0 3px 8px var(--petal-shadow));
 }
 
 .header h1 {
@@ -202,6 +234,8 @@ body::after {
 }
 
 .guest-name-panel {
+  position: relative;
+  overflow: hidden;
   background: rgba(255, 250, 240, 0.88);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -209,6 +243,24 @@ body::after {
   margin-bottom: 14px;
   box-shadow: 0 12px 28px rgba(84, 98, 75, 0.1);
   animation: slideUp 0.6s ease-out 0.2s both;
+}
+
+.guest-name-panel::after {
+  content: "";
+  position: absolute;
+  right: 16px;
+  top: 13px;
+  width: 72px;
+  height: 28px;
+  opacity: 0.62;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18px 14px, var(--petal) 0 5px, transparent 6px),
+    radial-gradient(circle at 26px 8px, var(--petal) 0 5px, transparent 6px),
+    radial-gradient(circle at 34px 14px, var(--petal) 0 5px, transparent 6px),
+    radial-gradient(circle at 26px 20px, var(--petal) 0 5px, transparent 6px),
+    radial-gradient(circle at 26px 14px, var(--gold-deep) 0 2px, transparent 3px),
+    radial-gradient(ellipse at 56px 14px, rgba(121, 138, 114, 0.58) 0 42%, transparent 45%);
 }
 
 .guest-name-panel .guest-name-input {
@@ -289,10 +341,43 @@ body::after {
 .requests-box,
 .admin-login,
 .gallery-item {
+  position: relative;
+  overflow: hidden;
   background: rgba(255, 250, 240, 0.86);
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: 0 16px 36px rgba(84, 98, 75, 0.12);
+}
+
+.upload-box::before,
+.search-box::before,
+.requests-box::before,
+.admin-login::before {
+  content: "";
+  position: absolute;
+  right: -6px;
+  top: -7px;
+  width: 96px;
+  height: 72px;
+  opacity: 0.5;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 44px 28px, var(--petal) 0 8px, transparent 9px),
+    radial-gradient(circle at 58px 18px, var(--petal) 0 8px, transparent 9px),
+    radial-gradient(circle at 72px 28px, var(--petal) 0 8px, transparent 9px),
+    radial-gradient(circle at 58px 39px, var(--petal) 0 8px, transparent 9px),
+    radial-gradient(circle at 58px 28px, var(--gold-deep) 0 4px, transparent 5px),
+    radial-gradient(ellipse at 22px 46px, rgba(121, 138, 114, 0.52) 0 44%, transparent 47%),
+    radial-gradient(ellipse at 20px 22px, rgba(84, 98, 75, 0.32) 0 40%, transparent 43%);
+  transform: rotate(9deg);
+}
+
+.upload-box > *,
+.search-box > *,
+.requests-box > *,
+.admin-login > * {
+  position: relative;
+  z-index: 1;
 }
 
 .upload-box,
