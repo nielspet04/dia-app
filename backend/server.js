@@ -214,6 +214,28 @@ const spotifyApiFetch = async (url, options = {}) => {
   return payload;
 };
 
+const addSpotifyPlaylistTrack = async (trackUri) => {
+  const config = requireSpotifyConfig();
+  return spotifyApiFetch(
+    `https://api.spotify.com/v1/playlists/${config.playlistId}/items`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ uris: [trackUri] })
+    }
+  );
+};
+
+const removeSpotifyPlaylistTrack = async (trackUri) => {
+  const config = requireSpotifyConfig();
+  return spotifyApiFetch(
+    `https://api.spotify.com/v1/playlists/${config.playlistId}/items`,
+    {
+      method: 'DELETE',
+      body: JSON.stringify({ items: [{ uri: trackUri }] })
+    }
+  );
+};
+
 db.serialize(() => {
   // Uploads table
   db.run(`
@@ -640,6 +662,23 @@ app.get('/api/spotify/requests', (req, res) => {
   });
 });
 
+app.get('/api/spotify/current', (req, res) => {
+  const sessionId = String(req.query.sessionId || '').trim();
+
+  if (!sessionId) {
+    return res.status(400).json({ error: 'Sessie ontbreekt' });
+  }
+
+  db.get(
+    'SELECT * FROM spotify_requests WHERE session_id = ? ORDER BY requested_at DESC LIMIT 1',
+    [sessionId],
+    (err, row) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(row || null);
+    }
+  );
+});
+
 app.delete('/api/spotify/requests/:id', (req, res) => {
   if (req.get('x-admin-password') !== ADMIN_PASSWORD) {
     return res.status(401).json({ error: 'Niet bevoegd' });
@@ -657,16 +696,11 @@ app.delete('/api/spotify/requests/:id', (req, res) => {
 
     const trackUri = requestRow.track_uri || (requestRow.track_id ? `spotify:track:${requestRow.track_id}` : '');
 
+    let removedExistingTrack = false;
+
     try {
       if (requestRow.added_to_playlist && trackUri) {
-        const config = requireSpotifyConfig();
-        await spotifyApiFetch(
-          `https://api.spotify.com/v1/playlists/${config.playlistId}/items`,
-          {
-            method: 'DELETE',
-            body: JSON.stringify({ items: [{ uri: trackUri }] })
-          }
-        );
+        await removeSpotifyPlaylistTrack(trackUri);
       }
     } catch (spotifyErr) {
       console.error('Spotify delete track error:', spotifyErr);
@@ -732,21 +766,51 @@ app.post('/api/spotify/request', express.json(), (req, res) => {
     return res.status(400).json({ error: 'Ongeldige Spotify track' });
   }
 
-  db.get('SELECT COUNT(*) AS count FROM spotify_requests WHERE session_id = ?', [cleanSessionId], async (err, row) => {
+  db.get('SELECT * FROM spotify_requests WHERE session_id = ? ORDER BY requested_at DESC LIMIT 1', [cleanSessionId], async (err, existingRequest) => {
     if (err) return res.status(500).json({ error: err.message });
-    if ((row?.count || 0) >= 1) {
-      return res.status(400).json({ error: 'Je hebt al 1 nummer aangevraagd' });
-    }
+
+    const existingTrackUri = existingRequest?.track_uri || (existingRequest?.track_id ? `spotify:track:${existingRequest.track_id}` : '');
 
     try {
-      const config = requireSpotifyConfig();
-      const spotifyResponse = await spotifyApiFetch(
-        `https://api.spotify.com/v1/playlists/${config.playlistId}/items`,
-        {
-          method: 'POST',
-          body: JSON.stringify({ uris: [trackUri] })
-        }
-      );
+      if (existingRequest && existingTrackUri === trackUri) {
+        db.run(
+          'UPDATE spotify_requests SET guest_name = ? WHERE id = ?',
+          [cleanGuestName, existingRequest.id],
+          (updateErr) => {
+            if (updateErr) return res.status(500).json({ error: updateErr.message });
+            res.json({ success: true, changed: false, message: 'Dit nummer stond al klaar' });
+          }
+        );
+        return;
+      }
+
+      if (existingRequest && existingRequest.added_to_playlist && existingTrackUri) {
+        await removeSpotifyPlaylistTrack(existingTrackUri);
+        removedExistingTrack = true;
+      }
+
+      const spotifyResponse = await addSpotifyPlaylistTrack(trackUri);
+
+      if (existingRequest) {
+        db.run(
+          `UPDATE spotify_requests
+           SET track_id = ?,
+               track_name = ?,
+               artist_name = ?,
+               track_uri = ?,
+               guest_name = ?,
+               added_to_playlist = ?,
+               snapshot_id = ?,
+               requested_at = CURRENT_TIMESTAMP
+           WHERE id = ?`,
+          [trackId, trackName, artistName, trackUri, cleanGuestName, 1, spotifyResponse.snapshot_id || null, existingRequest.id],
+          (updateErr) => {
+            if (updateErr) return res.status(500).json({ error: updateErr.message });
+            res.json({ success: true, changed: true, message: 'Nummer gewijzigd in playlist' });
+          }
+        );
+        return;
+      }
 
       db.run(
         `INSERT INTO spotify_requests
@@ -759,6 +823,14 @@ app.post('/api/spotify/request', express.json(), (req, res) => {
         }
       );
     } catch (spotifyErr) {
+      if (removedExistingTrack && existingTrackUri) {
+        try {
+          await addSpotifyPlaylistTrack(existingTrackUri);
+        } catch (restoreErr) {
+          console.error('Spotify restore previous track error:', restoreErr);
+        }
+      }
+
       console.error('Spotify add track error:', spotifyErr);
       res.status(500).json({ error: spotifyErr.message });
     }

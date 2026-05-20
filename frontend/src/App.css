@@ -615,6 +615,38 @@ body::after {
 }
 
 /* Spotify */
+.current-song {
+  background: rgba(217, 213, 186, 0.24);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 13px 14px;
+  margin-bottom: 18px;
+}
+
+.current-song-label {
+  color: var(--sage-deep);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+
+.current-song-title {
+  color: var(--text);
+  font-weight: 800;
+  margin-bottom: 3px;
+}
+
+.current-song-artist {
+  color: var(--muted);
+  font-size: 0.88rem;
+  margin-bottom: 9px;
+}
+
+.current-song .upload-hint {
+  margin-bottom: 0;
+}
+
 .search-form {
   display: flex;
   gap: 10px;

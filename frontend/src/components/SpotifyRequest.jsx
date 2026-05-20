@@ -13,6 +13,7 @@ export default function SpotifyRequest({ guestName }) {
   const [loadingRequests, setLoadingRequests] = useState(false);
   const [sessionId] = useState(getUploadSessionId);
   const [remainingRequests, setRemainingRequests] = useState(1);
+  const [currentRequest, setCurrentRequest] = useState(null);
 
   const loadRequests = useCallback(async () => {
     setLoadingRequests(true);
@@ -26,19 +27,51 @@ export default function SpotifyRequest({ guestName }) {
     }
   }, []);
 
-  useEffect(() => {
-    const loadRequestCount = async () => {
-      try {
-        const response = await axios.get(`${API_BASE}/spotify/count`, {
+  const loadRequestState = useCallback(async () => {
+    try {
+      const [countResponse, currentResponse] = await Promise.all([
+        axios.get(`${API_BASE}/spotify/count`, {
           params: { sessionId }
-        });
-        setRemainingRequests(response.data.remaining);
+        }),
+        axios.get(`${API_BASE}/spotify/current`, {
+          params: { sessionId }
+        })
+      ]);
+      setRemainingRequests(countResponse.data.remaining);
+      setCurrentRequest(currentResponse.data || null);
+    } catch (error) {
+      console.error('Failed to load Spotify request state:', error);
+    }
+  }, [sessionId]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadInitialRequestState = async () => {
+      try {
+        const [countResponse, currentResponse] = await Promise.all([
+          axios.get(`${API_BASE}/spotify/count`, {
+            params: { sessionId }
+          }),
+          axios.get(`${API_BASE}/spotify/current`, {
+            params: { sessionId }
+          })
+        ]);
+
+        if (isMounted) {
+          setRemainingRequests(countResponse.data.remaining);
+          setCurrentRequest(currentResponse.data || null);
+        }
       } catch (error) {
-        console.error('Failed to load Spotify request count:', error);
+        console.error('Failed to load Spotify request state:', error);
       }
     };
 
-    loadRequestCount();
+    loadInitialRequestState();
+
+    return () => {
+      isMounted = false;
+    };
   }, [sessionId]);
 
   useEffect(() => {
@@ -65,6 +98,7 @@ export default function SpotifyRequest({ guestName }) {
   const handleSearch = async (e) => {
     e.preventDefault();
     const cleanGuestName = guestName.trim();
+    const canRequestSong = remainingRequests > 0 || Boolean(currentRequest);
 
     if (!cleanGuestName) {
       alert('Vul eerst je naam in voordat je een nummer zoekt.');
@@ -72,7 +106,7 @@ export default function SpotifyRequest({ guestName }) {
       return;
     }
 
-    if (remainingRequests <= 0) {
+    if (!canRequestSong) {
       setMessage('Je hebt al 1 nummer aangevraagd');
       return;
     }
@@ -114,11 +148,20 @@ export default function SpotifyRequest({ guestName }) {
         guestName: cleanGuestName
       });
 
-      setMessage(`"${track.name}" toegevoegd aan playlist!`);
+      setMessage(`"${track.name}" ${currentRequest ? 'gewijzigd' : 'toegevoegd'} in playlist!`);
       setRemainingRequests(0);
+      setCurrentRequest({
+        track_id: track.id,
+        track_name: track.name,
+        artist_name: track.artist,
+        track_uri: track.uri,
+        guest_name: cleanGuestName,
+        added_to_playlist: 1
+      });
       setSearchQuery('');
       setResults([]);
       loadRequests();
+      loadRequestState();
 
       setTimeout(() => {
         setMessage('');
@@ -131,11 +174,22 @@ export default function SpotifyRequest({ guestName }) {
     }
   };
 
+  const canRequestSong = remainingRequests > 0 || Boolean(currentRequest);
+
   return (
     <div className="spotify-request">
       <div className="search-box">
         <h3>Request een nummer</h3>
-        <p className="upload-hint">Nog {remainingRequests} van 1 nummer beschikbaar</p>
+        {currentRequest ? (
+          <div className="current-song">
+            <p className="current-song-label">Jouw huidige keuze</p>
+            <p className="current-song-title">{currentRequest.track_name}</p>
+            <p className="current-song-artist">van {currentRequest.artist_name}</p>
+            <p className="upload-hint">Toch een beter nummer bedacht? Zoek hieronder en wijzig je keuze.</p>
+          </div>
+        ) : (
+          <p className="upload-hint">Nog {remainingRequests} van 1 nummer beschikbaar</p>
+        )}
 
         <form onSubmit={handleSearch} className="search-form">
           <input
@@ -143,9 +197,9 @@ export default function SpotifyRequest({ guestName }) {
             placeholder="Zoek een nummernaam of artiest..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            disabled={searching || remainingRequests <= 0}
+            disabled={searching || !canRequestSong}
           />
-          <button type="submit" disabled={searching || remainingRequests <= 0}>
+          <button type="submit" disabled={searching || !canRequestSong}>
             {searching ? 'Zoeken...' : 'Zoeken'}
           </button>
         </form>
@@ -168,9 +222,11 @@ export default function SpotifyRequest({ guestName }) {
                 <button
                   onClick={() => handleAddRequest(track)}
                   className="add-btn"
-                  disabled={addingTrackId === track.id || remainingRequests <= 0}
+                  disabled={addingTrackId === track.id || !canRequestSong}
                 >
-                  {addingTrackId === track.id ? 'Toevoegen...' : 'Toevoegen'}
+                  {addingTrackId === track.id
+                    ? (currentRequest ? 'Wijzigen...' : 'Toevoegen...')
+                    : (currentRequest ? 'Wijzig naar dit nummer' : 'Toevoegen')}
                 </button>
               </div>
             ))}
