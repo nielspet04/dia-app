@@ -144,16 +144,28 @@ http://YOUR_IP:5000
 
 Print deze QR codes en plaats ze op de tafels!
 
-## 🎵 Spotify Setup (Volgende Stap)
+## 🎵 Spotify Setup
 
 1. Ga naar https://developer.spotify.com
 2. Registreer een app
-3. Kopieer `Client ID` en `Client Secret`
-4. Update `backend/.env`:
+3. Voeg deze Redirect URI toe in je Spotify app settings:
+   ```
+   https://trouwguyenria.nl/api/spotify/callback
+   ```
+4. Maak of kies een playlist in je eigen Spotify account en kopieer de playlist ID uit de URL.
+5. Start de backend met:
    ```
    SPOTIFY_CLIENT_ID=your_id
    SPOTIFY_CLIENT_SECRET=your_secret
+   SPOTIFY_PLAYLIST_ID=your_playlist_id
+   SPOTIFY_REDIRECT_URI=https://trouwguyenria.nl/api/spotify/callback
    ```
+6. Koppel je Spotify account eenmalig als admin:
+   ```
+   https://trouwguyenria.nl/api/spotify/login?adminPassword=guyenria123
+   ```
+
+Daarna kunnen gasten in de app zoeken en maximaal 1 nummer per gast toevoegen aan de playlist.
 
 ## 📂 Folder Structuur
 

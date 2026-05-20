@@ -471,6 +471,7 @@ body {
   border-bottom: 1px solid var(--border);
   transition: all 0.2s ease;
   border-radius: 6px;
+  gap: 12px;
 }
 
 .track-item:hover {
@@ -483,6 +484,14 @@ body {
 
 .track-info {
   flex: 1;
+  min-width: 0;
+}
+
+.track-image {
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  object-fit: cover;
 }
 
 .track-name {
@@ -494,6 +503,15 @@ body {
 .track-artist {
   color: var(--muted);
   font-size: 0.85em;
+}
+
+.track-album {
+  color: var(--muted);
+  font-size: 0.78em;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .add-btn {
@@ -512,6 +530,12 @@ body {
 .add-btn:hover {
   transform: scale(1.08);
   box-shadow: 0 6px 16px rgba(29, 185, 84, 0.3);
+}
+
+.add-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .requests-list {

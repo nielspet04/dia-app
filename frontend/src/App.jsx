@@ -117,7 +117,7 @@ function App() {
             {activeTab === 'upload' && <UploadMedia guestName={guestName} />}
             {activeTab === 'video' && <UploadVideo guestName={guestName} />}
             {activeTab === 'voice' && <UploadVoice guestName={guestName} />}
-            {activeTab === 'spotify' && <SpotifyRequest />}
+            {activeTab === 'spotify' && <SpotifyRequest guestName={guestName} />}
           </main>
         </>
       )}

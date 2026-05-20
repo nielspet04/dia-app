@@ -5,6 +5,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
+const crypto = require('crypto');
 const sqlite3 = require('sqlite3').verbose();
 
 dotenv.config();
@@ -21,6 +22,8 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'guyenria123';
 const PHOTO_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif'];
 const VIDEO_EXTENSIONS = ['mp4', 'mov', 'webm'];
 const AUDIO_EXTENSIONS = ['webm', 'm4a', 'mp3', 'wav', 'ogg'];
+const SPOTIFY_SCOPE = 'playlist-modify-public playlist-modify-private';
+const SPOTIFY_MARKET = process.env.SPOTIFY_MARKET || 'BE';
 const allowedOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim()).filter(Boolean)
   : ['http://localhost:5173'];
@@ -110,6 +113,99 @@ const removeUploadFile = (filepath) => {
 // Database setup
 const db = new sqlite3.Database(path.join(__dirname, 'trouw.db'));
 
+const getSetting = (key) => new Promise((resolve, reject) => {
+  db.get('SELECT value FROM settings WHERE key = ?', [key], (err, row) => {
+    if (err) return reject(err);
+    resolve(row?.value || null);
+  });
+});
+
+const setSetting = (key, value) => new Promise((resolve, reject) => {
+  db.run(
+    'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+    [key, value],
+    (err) => {
+      if (err) return reject(err);
+      resolve();
+    }
+  );
+});
+
+const getSpotifyRedirectUri = (req) => (
+  process.env.SPOTIFY_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/spotify/callback`
+);
+
+const getSpotifyConfig = () => ({
+  clientId: process.env.SPOTIFY_CLIENT_ID,
+  clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
+  playlistId: process.env.SPOTIFY_PLAYLIST_ID
+});
+
+const requireSpotifyConfig = () => {
+  const config = getSpotifyConfig();
+  if (!config.clientId || !config.clientSecret || !config.playlistId) {
+    throw new Error('Spotify is nog niet geconfigureerd');
+  }
+  return config;
+};
+
+const requestSpotifyToken = async (body, config = getSpotifyConfig()) => {
+  if (!config.clientId || !config.clientSecret) {
+    throw new Error('Spotify client gegevens ontbreken');
+  }
+
+  const response = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64')}`,
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error_description || payload.error || 'Spotify token ophalen mislukt');
+  }
+
+  return payload;
+};
+
+const getSpotifyAccessToken = async () => {
+  const config = requireSpotifyConfig();
+  const refreshToken = await getSetting('spotify_refresh_token') || process.env.SPOTIFY_REFRESH_TOKEN;
+
+  if (!refreshToken) {
+    throw new Error('Spotify is nog niet gekoppeld');
+  }
+
+  const token = await requestSpotifyToken(new URLSearchParams({
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken
+  }), config);
+
+  return token.access_token;
+};
+
+const spotifyApiFetch = async (url, options = {}) => {
+  const accessToken = await getSpotifyAccessToken();
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+      ...(options.headers || {})
+    }
+  });
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(payload.error?.message || payload.error || 'Spotify request mislukt');
+  }
+
+  return payload;
+};
+
 db.serialize(() => {
   // Uploads table
   db.run(`
@@ -149,10 +245,34 @@ db.serialize(() => {
       track_id TEXT NOT NULL,
       track_name TEXT NOT NULL,
       artist_name TEXT NOT NULL,
+      track_uri TEXT,
       requested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      added_to_playlist INTEGER DEFAULT 0
+      added_to_playlist INTEGER DEFAULT 0,
+      session_id TEXT,
+      guest_name TEXT,
+      snapshot_id TEXT
     )
   `);
+
+  db.all('PRAGMA table_info(spotify_requests)', (err, columns) => {
+    if (err) return console.error('Failed to inspect spotify_requests table:', err);
+
+    const columnNames = columns.map(column => column.name);
+    const migrations = [
+      ['track_uri', 'ALTER TABLE spotify_requests ADD COLUMN track_uri TEXT'],
+      ['session_id', 'ALTER TABLE spotify_requests ADD COLUMN session_id TEXT'],
+      ['guest_name', 'ALTER TABLE spotify_requests ADD COLUMN guest_name TEXT'],
+      ['snapshot_id', 'ALTER TABLE spotify_requests ADD COLUMN snapshot_id TEXT']
+    ];
+
+    migrations.forEach(([columnName, sql]) => {
+      if (!columnNames.includes(columnName)) {
+        db.run(sql, (alterErr) => {
+          if (alterErr) console.error(`Failed to add ${columnName} column:`, alterErr);
+        });
+      }
+    });
+  });
 
   // Settings table
   db.run(`
@@ -428,6 +548,82 @@ app.post('/api/audio-upload', upload.single('audio'), (req, res) => {
   }
 });
 
+app.get('/api/spotify/login', async (req, res) => {
+  try {
+    if (req.query.adminPassword !== ADMIN_PASSWORD) {
+      return res.status(401).send('Niet bevoegd');
+    }
+
+    const config = getSpotifyConfig();
+    if (!config.clientId || !config.clientSecret) {
+      return res.status(500).send('SPOTIFY_CLIENT_ID en SPOTIFY_CLIENT_SECRET ontbreken');
+    }
+
+    const state = crypto.randomBytes(16).toString('hex');
+    const redirectUri = getSpotifyRedirectUri(req);
+    await setSetting('spotify_auth_state', state);
+
+    const authUrl = new URL('https://accounts.spotify.com/authorize');
+    authUrl.searchParams.set('response_type', 'code');
+    authUrl.searchParams.set('client_id', config.clientId);
+    authUrl.searchParams.set('scope', SPOTIFY_SCOPE);
+    authUrl.searchParams.set('redirect_uri', redirectUri);
+    authUrl.searchParams.set('state', state);
+
+    res.redirect(authUrl.toString());
+  } catch (error) {
+    console.error('Spotify login error:', error);
+    res.status(500).send(error.message);
+  }
+});
+
+app.get('/api/spotify/callback', async (req, res) => {
+  try {
+    const { code, state } = req.query;
+    const savedState = await getSetting('spotify_auth_state');
+
+    if (!code || !state || state !== savedState) {
+      return res.status(400).send('Spotify state klopt niet, probeer opnieuw te koppelen');
+    }
+
+    const config = getSpotifyConfig();
+    const token = await requestSpotifyToken(new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: getSpotifyRedirectUri(req)
+    }), config);
+
+    if (!token.refresh_token) {
+      return res.status(500).send('Geen refresh token ontvangen. Verwijder app-toegang in Spotify en probeer opnieuw.');
+    }
+
+    await setSetting('spotify_refresh_token', token.refresh_token);
+    await setSetting('spotify_auth_state', '');
+
+    res.send(`
+      <html>
+        <body style="font-family: system-ui; padding: 32px;">
+          <h1>Spotify gekoppeld</h1>
+          <p>Je kunt dit venster sluiten. Gasten kunnen nu nummers zoeken en toevoegen.</p>
+        </body>
+      </html>
+    `);
+  } catch (error) {
+    console.error('Spotify callback error:', error);
+    res.status(500).send(error.message);
+  }
+});
+
+app.get('/api/spotify/status', async (req, res) => {
+  const refreshToken = await getSetting('spotify_refresh_token') || process.env.SPOTIFY_REFRESH_TOKEN;
+  const config = getSpotifyConfig();
+
+  res.json({
+    configured: Boolean(config.clientId && config.clientSecret && config.playlistId),
+    connected: Boolean(refreshToken)
+  });
+});
+
 // Spotify: Get all requests
 app.get('/api/spotify/requests', (req, res) => {
   db.all('SELECT * FROM spotify_requests ORDER BY requested_at DESC', (err, rows) => {
@@ -437,33 +633,107 @@ app.get('/api/spotify/requests', (req, res) => {
 });
 
 // Spotify: Search tracks
-app.get('/api/spotify/search', (req, res) => {
-  const query = req.query.q;
-  if (!query) return res.status(400).json({ error: 'Query required' });
+app.get('/api/spotify/search', async (req, res) => {
+  try {
+    const query = String(req.query.q || '').trim();
+    if (!query) return res.status(400).json({ error: 'Query required' });
 
-  // Placeholder - we'll implement real Spotify search later
-  res.json({
-    message: 'Spotify search - to be implemented',
-    query
-  });
+    const searchUrl = new URL('https://api.spotify.com/v1/search');
+    searchUrl.searchParams.set('q', query);
+    searchUrl.searchParams.set('type', 'track');
+    searchUrl.searchParams.set('limit', '8');
+    searchUrl.searchParams.set('market', SPOTIFY_MARKET);
+
+    const payload = await spotifyApiFetch(searchUrl.toString());
+    const tracks = (payload.tracks?.items || []).map(track => ({
+      id: track.id,
+      name: track.name,
+      artist: track.artists.map(artist => artist.name).join(', '),
+      album: track.album?.name || '',
+      image: track.album?.images?.[2]?.url || track.album?.images?.[0]?.url || '',
+      uri: track.uri,
+      externalUrl: track.external_urls?.spotify || ''
+    }));
+
+    res.json(tracks);
+  } catch (error) {
+    console.error('Spotify search error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Spotify: Add request
 app.post('/api/spotify/request', express.json(), (req, res) => {
-  const { trackId, trackName, artistName } = req.body;
+  const { trackId, trackName, artistName, trackUri, sessionId, guestName } = req.body;
+  const cleanSessionId = String(sessionId || '').trim();
+  const cleanGuestName = String(guestName || '').trim().replace(/\s+/g, ' ');
   
-  if (!trackId || !trackName || !artistName) {
+  if (!trackId || !trackName || !artistName || !trackUri) {
     return res.status(400).json({ error: 'Vereiste velden ontbreken' });
   }
 
-  db.run(
-    'INSERT INTO spotify_requests (track_id, track_name, artist_name) VALUES (?, ?, ?)',
-    [trackId, trackName, artistName],
-    (err) => {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json({ success: true, message: 'Nummer toegevoegd aan aanvragen' });
+  if (!cleanSessionId) {
+    return res.status(400).json({ error: 'Sessie ontbreekt, herlaad de pagina en probeer opnieuw' });
+  }
+
+  if (!cleanGuestName) {
+    return res.status(400).json({ error: 'Vul eerst je naam in' });
+  }
+
+  if (!String(trackUri).startsWith('spotify:track:')) {
+    return res.status(400).json({ error: 'Ongeldige Spotify track' });
+  }
+
+  db.get('SELECT COUNT(*) AS count FROM spotify_requests WHERE session_id = ?', [cleanSessionId], async (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if ((row?.count || 0) >= 1) {
+      return res.status(400).json({ error: 'Je hebt al 1 nummer aangevraagd' });
     }
-  );
+
+    try {
+      const config = requireSpotifyConfig();
+      const spotifyResponse = await spotifyApiFetch(
+        `https://api.spotify.com/v1/playlists/${config.playlistId}/items`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ uris: [trackUri] })
+        }
+      );
+
+      db.run(
+        `INSERT INTO spotify_requests
+          (track_id, track_name, artist_name, track_uri, session_id, guest_name, added_to_playlist, snapshot_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [trackId, trackName, artistName, trackUri, cleanSessionId, cleanGuestName, 1, spotifyResponse.snapshot_id || null],
+        (insertErr) => {
+          if (insertErr) return res.status(500).json({ error: insertErr.message });
+          res.json({ success: true, message: 'Nummer toegevoegd aan playlist' });
+        }
+      );
+    } catch (spotifyErr) {
+      console.error('Spotify add track error:', spotifyErr);
+      res.status(500).json({ error: spotifyErr.message });
+    }
+  });
+});
+
+app.get('/api/spotify/count', (req, res) => {
+  const sessionId = String(req.query.sessionId || '').trim();
+
+  if (!sessionId) {
+    return res.status(400).json({ error: 'Sessie ontbreekt' });
+  }
+
+  db.get('SELECT COUNT(*) AS count FROM spotify_requests WHERE session_id = ?', [sessionId], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+
+    const count = row?.count || 0;
+    res.json({
+      count,
+      remaining: Math.max(0, 1 - count),
+      limit: 1
+    });
+  });
 });
 
 // Get all uploads
