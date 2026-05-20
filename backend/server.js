@@ -135,10 +135,16 @@ const getSpotifyRedirectUri = (req) => (
   process.env.SPOTIFY_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/spotify/callback`
 );
 
+const normalizeSpotifyPlaylistId = (value = '') => {
+  const playlistValue = String(value).trim();
+  const match = playlistValue.match(/playlist\/([A-Za-z0-9]+)/);
+  return match ? match[1] : playlistValue;
+};
+
 const getSpotifyConfig = () => ({
   clientId: process.env.SPOTIFY_CLIENT_ID,
   clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
-  playlistId: process.env.SPOTIFY_PLAYLIST_ID
+  playlistId: normalizeSpotifyPlaylistId(process.env.SPOTIFY_PLAYLIST_ID)
 });
 
 const requireSpotifyConfig = () => {
@@ -197,10 +203,12 @@ const spotifyApiFetch = async (url, options = {}) => {
       ...(options.headers || {})
     }
   });
-  const payload = await response.json().catch(() => ({}));
+  const responseText = await response.text();
+  const payload = responseText ? JSON.parse(responseText) : {};
 
   if (!response.ok) {
-    throw new Error(payload.error?.message || payload.error || 'Spotify request mislukt');
+    const message = payload.error?.message || payload.error_description || payload.error || responseText || 'Spotify request mislukt';
+    throw new Error(`Spotify ${response.status}: ${message}`);
   }
 
   return payload;
