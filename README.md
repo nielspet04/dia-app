@@ -62,6 +62,12 @@ Open daarna:
 http://YOUR_IP:5000/
 ```
 
+Gebruik je een domeinnaam, zet de toegestane frontend origin mee:
+
+```bash
+CORS_ORIGINS=https://jouwdomein.nl NODE_ENV=production npm start
+```
+
 Controleer op de server of de backend echt luistert:
 
 ```bash
@@ -77,6 +83,57 @@ sudo ufw status
 ```
 
 Gebruik je de Vite dev server op poort `5173`, open dan ook die poort en start Vite met `npm run dev:host`.
+
+## 🔒 HTTPS zonder browser-waarschuwing
+
+Voor een vertrouwd certificaat heb je normaal een domeinnaam nodig. Maak bij je DNS-provider een `A` record aan:
+
+```text
+jouwdomein.nl -> YOUR_IP
+```
+
+Laat daarna Nginx publiek HTTPS afhandelen en de app lokaal doorsturen:
+
+```bash
+sudo apt update
+sudo apt install nginx certbot python3-certbot-nginx
+```
+
+Start de backend lokaal op poort `5000`:
+
+```bash
+cd backend
+HOST=127.0.0.1 CORS_ORIGINS=https://jouwdomein.nl NODE_ENV=production npm start
+```
+
+Maak een Nginx site:
+
+```nginx
+server {
+  server_name jouwdomein.nl;
+
+  location / {
+    proxy_pass http://127.0.0.1:5000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+}
+```
+
+Activeer daarna het certificaat:
+
+```bash
+sudo certbot --nginx -d jouwdomein.nl
+```
+
+Gebruik voor de QR-code dan:
+
+```text
+https://jouwdomein.nl/
+```
 
 ## 📝 QR Code Genereren
 

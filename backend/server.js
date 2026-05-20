@@ -12,12 +12,15 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 const HOST = process.env.HOST || '0.0.0.0';
+const MAX_UPLOADS_PER_SESSION = 5;
+const allowedOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim()).filter(Boolean)
+  : ['http://localhost:5173'];
 
 // server.js
+app.set('trust proxy', true);
 const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['http://5.22.208.187', 'http://5.22.208.187:5173', 'https://5.22.208.187'] 
-    : 'http://localhost:5173',
+  origin: allowedOrigins,
   credentials: true
 };
 app.use(cors(corsOptions));
@@ -51,6 +54,14 @@ const upload = multer({
   storage,
   limits: { fileSize: 100 * 1024 * 1024 } // 100MB max
 });
+
+const removeUploadedFiles = (files = []) => {
+  files.forEach((file) => {
+    fs.unlink(file.path, (err) => {
+      if (err) console.error('Failed to remove rejected upload:', err);
+    });
+  });
+};
 
 // Database setup
 const db = new sqlite3.Database(path.join(__dirname, 'trouw.db'));
@@ -91,6 +102,25 @@ db.serialize(() => {
 
 // API Routes
 
+app.get('/api/uploads/count', (req, res) => {
+  const sessionId = String(req.query.sessionId || '').trim();
+
+  if (!sessionId) {
+    return res.status(400).json({ error: 'Sessie ontbreekt' });
+  }
+
+  db.get('SELECT COUNT(*) AS count FROM uploads WHERE session_id = ?', [sessionId], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+
+    const count = row?.count || 0;
+    res.json({
+      count,
+      remaining: Math.max(0, MAX_UPLOADS_PER_SESSION - count),
+      limit: MAX_UPLOADS_PER_SESSION
+    });
+  });
+});
+
 // Upload media
 app.post('/api/upload', upload.array('files', 6), (req, res) => {
   try {
@@ -98,26 +128,64 @@ app.post('/api/upload', upload.array('files', 6), (req, res) => {
       return res.status(400).json({ error: 'Geen bestanden geupload' });
     }
 
-    const uploaded = req.files.map(file => ({
-      filename: file.filename,
-      originalname: file.originalname,
-      size: file.size,
-      path: `/uploads/${file.filename}`
-    }));
+    const sessionId = String(req.body.sessionId || '').trim();
 
-    // Save to database
-    uploaded.forEach(file => {
-      db.run('INSERT INTO uploads (filename, filepath, filetype) VALUES (?, ?, ?)',
-        [file.filename, file.path, file.originalname.split('.').pop()]
+    if (!sessionId) {
+      removeUploadedFiles(req.files);
+      return res.status(400).json({ error: 'Sessie ontbreekt, herlaad de pagina en probeer opnieuw' });
+    }
+
+    if (req.files.length > MAX_UPLOADS_PER_SESSION) {
+      removeUploadedFiles(req.files);
+      return res.status(400).json({ error: `Maximum ${MAX_UPLOADS_PER_SESSION} foto's toegestaan` });
+    }
+
+    db.get('SELECT COUNT(*) AS count FROM uploads WHERE session_id = ?', [sessionId], (err, row) => {
+      if (err) {
+        removeUploadedFiles(req.files);
+        return res.status(500).json({ error: err.message });
+      }
+
+      const currentCount = row?.count || 0;
+      const remaining = MAX_UPLOADS_PER_SESSION - currentCount;
+
+      if (remaining <= 0 || req.files.length > remaining) {
+        removeUploadedFiles(req.files);
+        return res.status(400).json({
+          error: remaining <= 0
+            ? `Je hebt al ${MAX_UPLOADS_PER_SESSION} foto's geupload`
+            : `Je kunt nog maar ${remaining} foto${remaining === 1 ? '' : "'s"} uploaden`
+        });
+      }
+
+      const uploaded = req.files.map(file => ({
+        filename: file.filename,
+        originalname: file.originalname,
+        size: file.size,
+        path: `/uploads/${file.filename}`
+      }));
+
+      const insert = db.prepare(
+        'INSERT INTO uploads (filename, filepath, filetype, session_id) VALUES (?, ?, ?, ?)'
       );
-    });
 
-    res.json({
-      success: true,
-      files: uploaded,
-      message: `${uploaded.length} bestanden succesvol geupload`
+      uploaded.forEach(file => {
+        insert.run(file.filename, file.path, file.originalname.split('.').pop(), sessionId);
+      });
+
+      insert.finalize((finalizeErr) => {
+        if (finalizeErr) return res.status(500).json({ error: finalizeErr.message });
+
+        res.json({
+          success: true,
+          files: uploaded,
+          remaining: remaining - uploaded.length,
+          message: `${uploaded.length} bestanden succesvol geupload`
+        });
+      });
     });
   } catch (error) {
+    removeUploadedFiles(req.files);
     console.error('Upload error:', error);
     res.status(500).json({ error: 'Upload mislukt' });
   }

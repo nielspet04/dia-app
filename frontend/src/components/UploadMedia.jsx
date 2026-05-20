@@ -1,19 +1,57 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { API_BASE } from '../config';
+
+const MAX_UPLOADS = 5;
+const SESSION_STORAGE_KEY = 'trouw-upload-session-id';
+
+const getUploadSessionId = () => {
+  const existing = localStorage.getItem(SESSION_STORAGE_KEY);
+  if (existing) return existing;
+
+  const sessionId = crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  localStorage.setItem(SESSION_STORAGE_KEY, sessionId);
+  return sessionId;
+};
 
 export default function UploadMedia() {
   const [files, setFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState('');
   const [progress, setProgress] = useState(0);
+  const [sessionId] = useState(getUploadSessionId);
+  const [remainingUploads, setRemainingUploads] = useState(MAX_UPLOADS);
+
+  useEffect(() => {
+    const loadUploadCount = async () => {
+      try {
+        const response = await axios.get(`${API_BASE}/uploads/count`, {
+          params: { sessionId }
+        });
+        setRemainingUploads(response.data.remaining);
+      } catch (error) {
+        console.error('Failed to load upload count:', error);
+      }
+    };
+
+    loadUploadCount();
+  }, [sessionId]);
 
   const handleFileSelect = (e) => {
     const selectedFiles = Array.from(e.target.files);
     
-    // Limit to 5 files (photos only, no videos)
-    if (selectedFiles.length > 5) {
-      setMessage('⚠️ Maximum 5 foto\'s toegestaan');
+    if (remainingUploads <= 0) {
+      setMessage('⚠️ Je hebt al 5 foto\'s geupload');
+      e.target.value = '';
+      return;
+    }
+
+    if (selectedFiles.length > remainingUploads) {
+      setMessage(`⚠️ Je kunt nog maar ${remainingUploads} foto${remainingUploads === 1 ? '' : '\'s'} uploaden`);
+      e.target.value = '';
       return;
     }
 
@@ -23,6 +61,7 @@ export default function UploadMedia() {
 
     if (invalidFiles.length > 0) {
       setMessage('❌ Alleen foto\'s (JPG, PNG, GIF) toegestaan');
+      e.target.value = '';
       return;
     }
 
@@ -38,6 +77,7 @@ export default function UploadMedia() {
 
     setUploading(true);
     const formData = new FormData();
+    formData.append('sessionId', sessionId);
     files.forEach(file => {
       formData.append('files', file);
     });
@@ -51,6 +91,7 @@ export default function UploadMedia() {
       });
 
       setMessage(`✅ ${response.data.message}`);
+      setRemainingUploads(response.data.remaining);
       setFiles([]);
       setProgress(0);
 
@@ -70,7 +111,7 @@ export default function UploadMedia() {
     <div className="upload-media">
       <div className="upload-box">
         <h3>📸 Upload je foto's</h3>
-        <p className="upload-hint">Maximum 5 foto's</p>
+        <p className="upload-hint">Nog {remainingUploads} van {MAX_UPLOADS} foto's beschikbaar</p>
 
         <input
           type="file"
@@ -78,7 +119,7 @@ export default function UploadMedia() {
           multiple
           accept="image/jpeg,image/png,image/gif"
           onChange={handleFileSelect}
-          disabled={uploading}
+          disabled={uploading || remainingUploads <= 0}
           style={{ display: 'none' }}
         />
 
@@ -101,7 +142,7 @@ export default function UploadMedia() {
 
         <button
           onClick={handleUpload}
-          disabled={uploading || files.length === 0}
+          disabled={uploading || files.length === 0 || remainingUploads <= 0}
           className="upload-btn"
         >
           {uploading ? `⏳ Uploading... ${progress}%` : '🚀 Upload'}
