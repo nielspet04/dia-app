@@ -691,6 +691,8 @@ body {
   color: var(--muted);
   font-size: 0.75em;
 }
+
+@keyframes slideDown {
   from {
     opacity: 0;
     transform: translateY(-20px);
