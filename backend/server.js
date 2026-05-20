@@ -14,12 +14,16 @@ const PORT = process.env.PORT || 5000;
 // server.js
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
-    ? ['http://5.22.208.187', 'https://your-domain.com'] 
+    ? ['http://5.22.208.187', 'https://5.22.208.187'] 
     : 'http://localhost:5173',
   credentials: true
 };
 app.use(cors(corsOptions));
-
+// Serve built frontend
+app.use(express.static(path.join(__dirname, '../frontend/dist')));
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
+});
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
