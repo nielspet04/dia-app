@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import './App.css';
 import UploadMedia from './components/UploadMedia';
+import UploadVideo from './components/UploadVideo';
 import SpotifyRequest from './components/SpotifyRequest';
 import AdminGallery from './components/AdminGallery';
 
@@ -68,7 +69,13 @@ function App() {
               className={`tab ${activeTab === 'upload' ? 'active' : ''}`}
               onClick={() => setActiveTab('upload')}
             >
-              📸 Upload Media
+              📸 Foto's
+            </button>
+            <button
+              className={`tab ${activeTab === 'video' ? 'active' : ''}`}
+              onClick={() => setActiveTab('video')}
+            >
+              🎬 Video
             </button>
             <button 
               className={`tab ${activeTab === 'spotify' ? 'active' : ''}`}
@@ -80,6 +87,7 @@ function App() {
 
           <main className="content">
             {activeTab === 'upload' && <UploadMedia />}
+            {activeTab === 'video' && <UploadVideo />}
             {activeTab === 'spotify' && <SpotifyRequest />}
           </main>
         </>

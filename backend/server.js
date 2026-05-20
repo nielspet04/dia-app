@@ -12,9 +12,13 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 const HOST = process.env.HOST || '0.0.0.0';
-const MAX_UPLOADS_PER_SESSION = 5;
+const MAX_PHOTO_UPLOADS_PER_SESSION = 5;
+const MAX_VIDEO_UPLOADS_PER_SESSION = 1;
 const MAX_GUEST_NAME_LENGTH = 80;
+const MAX_UPLOAD_SIZE_MB = Number(process.env.MAX_UPLOAD_SIZE_MB || 250);
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'guyenria123';
+const PHOTO_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif'];
+const VIDEO_EXTENSIONS = ['mp4', 'mov', 'webm'];
 const allowedOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim()).filter(Boolean)
   : ['http://localhost:5173'];
@@ -54,8 +58,26 @@ const storage = multer.diskStorage({
 
 const upload = multer({ 
   storage,
-  limits: { fileSize: 100 * 1024 * 1024 } // 100MB max
+  limits: { fileSize: MAX_UPLOAD_SIZE_MB * 1024 * 1024 }
 });
+
+const placeholders = (items) => items.map(() => '?').join(',');
+const photoExtensionPlaceholders = placeholders(PHOTO_EXTENSIONS);
+const videoExtensionPlaceholders = placeholders(VIDEO_EXTENSIONS);
+
+const getFileExtension = (filename) => path.extname(filename).slice(1).toLowerCase();
+const isPhotoFile = (file) => file.mimetype.startsWith('image/') && PHOTO_EXTENSIONS.includes(getFileExtension(file.originalname));
+const isVideoFile = (file) => file.mimetype.startsWith('video/') && VIDEO_EXTENSIONS.includes(getFileExtension(file.originalname));
+const countUploadsByType = (sessionId, type, callback) => {
+  const extensions = type === 'video' ? VIDEO_EXTENSIONS : PHOTO_EXTENSIONS;
+  const extensionPlaceholders = type === 'video' ? videoExtensionPlaceholders : photoExtensionPlaceholders;
+
+  db.get(
+    `SELECT COUNT(*) AS count FROM uploads WHERE session_id = ? AND LOWER(filetype) IN (${extensionPlaceholders})`,
+    [sessionId, ...extensions],
+    callback
+  );
+};
 
 const removeUploadedFiles = (files = []) => {
   files.forEach((file) => {
@@ -127,19 +149,21 @@ db.serialize(() => {
 
 app.get('/api/uploads/count', (req, res) => {
   const sessionId = String(req.query.sessionId || '').trim();
+  const uploadType = req.query.type === 'video' ? 'video' : 'photo';
+  const limit = uploadType === 'video' ? MAX_VIDEO_UPLOADS_PER_SESSION : MAX_PHOTO_UPLOADS_PER_SESSION;
 
   if (!sessionId) {
     return res.status(400).json({ error: 'Sessie ontbreekt' });
   }
 
-  db.get('SELECT COUNT(*) AS count FROM uploads WHERE session_id = ?', [sessionId], (err, row) => {
+  countUploadsByType(sessionId, uploadType, (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
 
     const count = row?.count || 0;
     res.json({
       count,
-      remaining: Math.max(0, MAX_UPLOADS_PER_SESSION - count),
-      limit: MAX_UPLOADS_PER_SESSION
+      remaining: Math.max(0, limit - count),
+      limit
     });
   });
 });
@@ -169,25 +193,31 @@ app.post('/api/upload', upload.array('files', 6), (req, res) => {
       return res.status(400).json({ error: `Naam mag maximaal ${MAX_GUEST_NAME_LENGTH} tekens zijn` });
     }
 
-    if (req.files.length > MAX_UPLOADS_PER_SESSION) {
+    if (req.files.length > MAX_PHOTO_UPLOADS_PER_SESSION) {
       removeUploadedFiles(req.files);
-      return res.status(400).json({ error: `Maximum ${MAX_UPLOADS_PER_SESSION} foto's toegestaan` });
+      return res.status(400).json({ error: `Maximum ${MAX_PHOTO_UPLOADS_PER_SESSION} foto's toegestaan` });
     }
 
-    db.get('SELECT COUNT(*) AS count FROM uploads WHERE session_id = ?', [sessionId], (err, row) => {
+    const invalidFiles = req.files.filter(file => !isPhotoFile(file));
+    if (invalidFiles.length > 0) {
+      removeUploadedFiles(req.files);
+      return res.status(400).json({ error: 'Alleen foto\'s (JPG, PNG, GIF) toegestaan' });
+    }
+
+    countUploadsByType(sessionId, 'photo', (err, row) => {
       if (err) {
         removeUploadedFiles(req.files);
         return res.status(500).json({ error: err.message });
       }
 
       const currentCount = row?.count || 0;
-      const remaining = MAX_UPLOADS_PER_SESSION - currentCount;
+      const remaining = MAX_PHOTO_UPLOADS_PER_SESSION - currentCount;
 
       if (remaining <= 0 || req.files.length > remaining) {
         removeUploadedFiles(req.files);
         return res.status(400).json({
           error: remaining <= 0
-            ? `Je hebt al ${MAX_UPLOADS_PER_SESSION} foto's geupload`
+            ? `Je hebt al ${MAX_PHOTO_UPLOADS_PER_SESSION} foto's geupload`
             : `Je kunt nog maar ${remaining} foto${remaining === 1 ? '' : "'s"} uploaden`
         });
       }
@@ -222,6 +252,81 @@ app.post('/api/upload', upload.array('files', 6), (req, res) => {
     removeUploadedFiles(req.files);
     console.error('Upload error:', error);
     res.status(500).json({ error: 'Upload mislukt' });
+  }
+});
+
+app.post('/api/video-upload', upload.single('video'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Geen video geupload' });
+    }
+
+    const sessionId = String(req.body.sessionId || '').trim();
+    const guestName = String(req.body.guestName || '').trim().replace(/\s+/g, ' ');
+
+    if (!sessionId) {
+      removeUploadedFiles([req.file]);
+      return res.status(400).json({ error: 'Sessie ontbreekt, herlaad de pagina en probeer opnieuw' });
+    }
+
+    if (!guestName) {
+      removeUploadedFiles([req.file]);
+      return res.status(400).json({ error: 'Vul eerst je naam in' });
+    }
+
+    if (guestName.length > MAX_GUEST_NAME_LENGTH) {
+      removeUploadedFiles([req.file]);
+      return res.status(400).json({ error: `Naam mag maximaal ${MAX_GUEST_NAME_LENGTH} tekens zijn` });
+    }
+
+    if (!isVideoFile(req.file)) {
+      removeUploadedFiles([req.file]);
+      return res.status(400).json({ error: 'Alleen video\'s (MP4, MOV, WebM) toegestaan' });
+    }
+
+    countUploadsByType(sessionId, 'video', (err, row) => {
+      if (err) {
+        removeUploadedFiles([req.file]);
+        return res.status(500).json({ error: err.message });
+      }
+
+      const currentCount = row?.count || 0;
+      const remaining = MAX_VIDEO_UPLOADS_PER_SESSION - currentCount;
+
+      if (remaining <= 0) {
+        removeUploadedFiles([req.file]);
+        return res.status(400).json({ error: 'Je hebt al 1 video geupload' });
+      }
+
+      const uploaded = {
+        filename: req.file.filename,
+        originalname: req.file.originalname,
+        size: req.file.size,
+        path: `/uploads/${req.file.filename}`
+      };
+
+      db.run(
+        'INSERT INTO uploads (filename, filepath, filetype, session_id, guest_name) VALUES (?, ?, ?, ?, ?)',
+        [uploaded.filename, uploaded.path, getFileExtension(req.file.originalname), sessionId, guestName],
+        (insertErr) => {
+          if (insertErr) {
+            removeUploadedFiles([req.file]);
+            return res.status(500).json({ error: insertErr.message });
+          }
+
+          res.json({
+            success: true,
+            file: uploaded,
+            remaining: remaining - 1,
+            message: 'Video succesvol geupload'
+          });
+        }
+      );
+    });
+  } catch (error) {
+    removeUploadedFiles(req.file ? [req.file] : []);
+    console.error('Video upload error:', error);
+    res.status(500).json({ error: 'Video upload mislukt' });
   }
 });
 

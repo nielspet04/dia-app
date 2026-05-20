@@ -118,9 +118,11 @@ export default function AdminGallery({ adminPassword }) {
                       />
                     )}
                     {isVideo && (
-                      <div className="video-placeholder">
-                        🎬 Video
-                      </div>
+                      <video
+                        src={`${MEDIA_BASE}${upload.filepath}`}
+                        controls
+                        preload="metadata"
+                      />
                     )}
                   </div>
                 </a>

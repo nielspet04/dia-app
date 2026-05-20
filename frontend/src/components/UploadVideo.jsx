@@ -8,34 +8,34 @@ import {
   saveGuestName
 } from '../uploadSession';
 
-const MAX_UPLOADS = 5;
+const MAX_VIDEO_UPLOADS = 1;
 
-export default function UploadMedia() {
-  const [files, setFiles] = useState([]);
+export default function UploadVideo() {
+  const [video, setVideo] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState('');
   const [progress, setProgress] = useState(0);
   const [sessionId] = useState(getUploadSessionId);
-  const [remainingUploads, setRemainingUploads] = useState(MAX_UPLOADS);
+  const [remainingUploads, setRemainingUploads] = useState(MAX_VIDEO_UPLOADS);
   const [guestName, setGuestName] = useState(getSavedGuestName);
 
   useEffect(() => {
     const loadUploadCount = async () => {
       try {
         const response = await axios.get(`${API_BASE}/uploads/count`, {
-          params: { sessionId }
+          params: { sessionId, type: 'video' }
         });
         setRemainingUploads(response.data.remaining);
       } catch (error) {
-        console.error('Failed to load upload count:', error);
+        console.error('Failed to load video upload count:', error);
       }
     };
 
     loadUploadCount();
   }, [sessionId]);
 
-  const handleFileSelect = (e) => {
-    const selectedFiles = Array.from(e.target.files);
+  const handleVideoSelect = (e) => {
+    const selectedVideo = e.target.files?.[0];
     const cleanGuestName = guestName.trim();
 
     if (!cleanGuestName) {
@@ -43,30 +43,23 @@ export default function UploadMedia() {
       e.target.value = '';
       return;
     }
-    
+
     if (remainingUploads <= 0) {
-      setMessage('⚠️ Je hebt al 5 foto\'s geupload');
+      setMessage('⚠️ Je hebt al 1 video geupload');
       e.target.value = '';
       return;
     }
 
-    if (selectedFiles.length > remainingUploads) {
-      setMessage(`⚠️ Je kunt nog maar ${remainingUploads} foto${remainingUploads === 1 ? '' : '\'s'} uploaden`);
+    if (!selectedVideo) return;
+
+    const validTypes = ['video/mp4', 'video/quicktime', 'video/webm'];
+    if (!validTypes.includes(selectedVideo.type)) {
+      setMessage('❌ Alleen video\'s (MP4, MOV, WebM) toegestaan');
       e.target.value = '';
       return;
     }
 
-    // Check file types - only images
-    const validTypes = ['image/jpeg', 'image/png', 'image/gif'];
-    const invalidFiles = selectedFiles.filter(f => !validTypes.includes(f.type));
-
-    if (invalidFiles.length > 0) {
-      setMessage('❌ Alleen foto\'s (JPG, PNG, GIF) toegestaan');
-      e.target.value = '';
-      return;
-    }
-
-    setFiles(selectedFiles);
+    setVideo(selectedVideo);
     setMessage('');
   };
 
@@ -78,8 +71,8 @@ export default function UploadMedia() {
       return;
     }
 
-    if (files.length === 0) {
-      setMessage('⚠️ Selecteer eerst bestanden');
+    if (!video) {
+      setMessage('⚠️ Selecteer eerst een video');
       return;
     }
 
@@ -88,12 +81,10 @@ export default function UploadMedia() {
     const formData = new FormData();
     formData.append('sessionId', sessionId);
     formData.append('guestName', cleanGuestName);
-    files.forEach(file => {
-      formData.append('files', file);
-    });
+    formData.append('video', video);
 
     try {
-      const response = await axios.post(`${API_BASE}/upload`, formData, {
+      const response = await axios.post(`${API_BASE}/video-upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress: (e) => {
           setProgress(Math.round((e.loaded / e.total) * 100));
@@ -102,16 +93,15 @@ export default function UploadMedia() {
 
       setMessage(`✅ ${response.data.message}`);
       setRemainingUploads(response.data.remaining);
-      setFiles([]);
+      setVideo(null);
       setProgress(0);
 
-      // Reset after 3 seconds
       setTimeout(() => {
         setMessage('');
       }, 3000);
     } catch (error) {
       setMessage(`❌ Upload mislukt: ${error.response?.data?.error || error.message}`);
-      console.error('Upload error:', error);
+      console.error('Video upload error:', error);
     } finally {
       setUploading(false);
     }
@@ -120,14 +110,14 @@ export default function UploadMedia() {
   return (
     <div className="upload-media">
       <div className="upload-box">
-        <h3>📸 Upload je foto's</h3>
-        <p className="upload-hint">Nog {remainingUploads} van {MAX_UPLOADS} foto's beschikbaar</p>
+        <h3>🎬 Upload je video</h3>
+        <p className="upload-hint">Nog {remainingUploads} van {MAX_VIDEO_UPLOADS} video beschikbaar</p>
 
-        <label className="guest-name-label" htmlFor="guest-name">
+        <label className="guest-name-label" htmlFor="video-guest-name">
           Jouw naam
         </label>
         <input
-          id="guest-name"
+          id="video-guest-name"
           className="guest-name-input"
           type="text"
           value={guestName}
@@ -143,37 +133,32 @@ export default function UploadMedia() {
 
         <input
           type="file"
-          id="file-input"
-          multiple
-          accept="image/jpeg,image/png,image/gif"
-          onChange={handleFileSelect}
+          id="video-input"
+          accept="video/mp4,video/quicktime,video/webm"
+          onChange={handleVideoSelect}
           disabled={uploading || remainingUploads <= 0 || !guestName.trim()}
           style={{ display: 'none' }}
         />
 
-        <label htmlFor="file-input" className="file-label">
-          📁 Selecteer bestanden
+        <label htmlFor="video-input" className="file-label">
+          🎬 Selecteer video
         </label>
 
-        {files.length > 0 && (
+        {video && (
           <div className="file-list">
-            <h4>Geselecteerde bestanden:</h4>
+            <h4>Geselecteerde video:</h4>
             <ul>
-              {Array.from(files).map((file, idx) => (
-                <li key={idx}>
-                  {file.type.startsWith('image') ? '🖼️' : '🎬'} {file.name}
-                </li>
-              ))}
+              <li>🎬 {video.name}</li>
             </ul>
           </div>
         )}
 
         <button
           onClick={handleUpload}
-          disabled={uploading || files.length === 0 || remainingUploads <= 0 || !guestName.trim()}
+          disabled={uploading || !video || remainingUploads <= 0 || !guestName.trim()}
           className="upload-btn"
         >
-          {uploading ? `⏳ Uploading... ${progress}%` : '🚀 Upload'}
+          {uploading ? `⏳ Uploading... ${progress}%` : '🚀 Upload video'}
         </button>
 
         {message && <p className="message">{message}</p>}
