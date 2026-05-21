@@ -1153,6 +1153,14 @@ body::after {
   transform: translateY(-3px);
 }
 
+.gallery-item.guest-removed {
+  opacity: 0.76;
+}
+
+.gallery-item.guest-removed .gallery-media {
+  filter: grayscale(0.35);
+}
+
 .gallery-link {
   display: block;
   text-decoration: none;
@@ -1212,6 +1220,13 @@ body::after {
 .gallery-info {
   padding: 12px;
   border-top: 1px solid var(--border);
+}
+
+.gallery-removed {
+  color: #8e3732;
+  font-size: 0.78rem;
+  font-weight: 800;
+  margin: 0 0 4px;
 }
 
 .gallery-filename {

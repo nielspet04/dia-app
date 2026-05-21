@@ -88,6 +88,7 @@ const countUploadsByType = (sessionId, type, callback) => {
     `SELECT COUNT(*) AS count
      FROM uploads
      WHERE session_id = ?
+       AND COALESCE(guest_removed, 0) = 0
        AND (media_type = ? OR (media_type IS NULL AND LOWER(filetype) IN (${extensionPlaceholders})))`,
     [sessionId, type, ...extensions],
     callback
@@ -248,7 +249,8 @@ db.serialize(() => {
       uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       session_id TEXT,
       guest_name TEXT,
-      media_type TEXT
+      media_type TEXT,
+      guest_removed INTEGER DEFAULT 0
     )
   `);
 
@@ -257,6 +259,7 @@ db.serialize(() => {
 
     const hasGuestName = columns.some(column => column.name === 'guest_name');
     const hasMediaType = columns.some(column => column.name === 'media_type');
+    const hasGuestRemoved = columns.some(column => column.name === 'guest_removed');
     if (!hasGuestName) {
       db.run('ALTER TABLE uploads ADD COLUMN guest_name TEXT', (alterErr) => {
         if (alterErr) console.error('Failed to add guest_name column:', alterErr);
@@ -265,6 +268,11 @@ db.serialize(() => {
     if (!hasMediaType) {
       db.run('ALTER TABLE uploads ADD COLUMN media_type TEXT', (alterErr) => {
         if (alterErr) console.error('Failed to add media_type column:', alterErr);
+      });
+    }
+    if (!hasGuestRemoved) {
+      db.run('ALTER TABLE uploads ADD COLUMN guest_removed INTEGER DEFAULT 0', (alterErr) => {
+        if (alterErr) console.error('Failed to add guest_removed column:', alterErr);
       });
     }
   });
@@ -365,6 +373,7 @@ app.get('/api/uploads/mine', (req, res) => {
     `SELECT *
      FROM uploads
      WHERE session_id = ?
+       AND COALESCE(guest_removed, 0) = 0
        AND (media_type = 'photo' OR (media_type IS NULL AND LOWER(filetype) IN (${photoExtensionPlaceholders})))
      ORDER BY uploaded_at DESC`,
     [sessionId, ...PHOTO_EXTENSIONS],
@@ -451,6 +460,7 @@ app.post('/api/upload', upload.array('files', 6), (req, res) => {
           `SELECT *
            FROM uploads
            WHERE session_id = ?
+             AND COALESCE(guest_removed, 0) = 0
              AND (media_type = 'photo' OR (media_type IS NULL AND LOWER(filetype) IN (${photoExtensionPlaceholders})))
            ORDER BY uploaded_at DESC`,
           [sessionId, ...PHOTO_EXTENSIONS],
@@ -1089,15 +1099,8 @@ app.delete('/api/uploads/:id/mine', (req, res) => {
       return res.status(400).json({ error: 'Alleen eigen foto\'s kunnen hier verwijderd worden' });
     }
 
-    try {
-      await removeUploadFile(uploadRow.filepath);
-    } catch (fileErr) {
-      console.error('Failed to delete own upload file:', fileErr);
-      return res.status(500).json({ error: 'Bestand verwijderen mislukt' });
-    }
-
-    db.run('DELETE FROM uploads WHERE id = ? AND session_id = ?', [uploadId, sessionId], (deleteErr) => {
-      if (deleteErr) return res.status(500).json({ error: deleteErr.message });
+    db.run('UPDATE uploads SET guest_removed = 1 WHERE id = ? AND session_id = ?', [uploadId, sessionId], (updateErr) => {
+      if (updateErr) return res.status(500).json({ error: updateErr.message });
 
       countUploadsByType(sessionId, 'photo', (countErr, row) => {
         if (countErr) return res.status(500).json({ error: countErr.message });
@@ -1105,7 +1108,7 @@ app.delete('/api/uploads/:id/mine', (req, res) => {
         const count = row?.count || 0;
         res.json({
           success: true,
-          message: 'Foto verwijderd',
+          message: 'Foto verwijderd uit jouw selectie',
           count,
           remaining: Math.max(0, MAX_PHOTO_UPLOADS_PER_SESSION - count),
           limit: MAX_PHOTO_UPLOADS_PER_SESSION

@@ -262,7 +262,7 @@ export default function AdminGallery({ adminPassword }) {
             const isAudio = uploadType === 'audio';
             
             return (
-              <div key={upload.id} className="gallery-item">
+              <div key={upload.id} className={`gallery-item ${upload.guest_removed ? 'guest-removed' : ''}`}>
                 <a 
                   href={`${MEDIA_BASE}${upload.filepath}`} 
                   target="_blank" 
@@ -299,6 +299,9 @@ export default function AdminGallery({ adminPassword }) {
                 <div className="gallery-info">
                   <p className="gallery-filename">{upload.originalname || upload.filename}</p>
                   <p className="gallery-guest">Door {upload.guest_name || 'Onbekend'}</p>
+                  {upload.guest_removed ? (
+                    <p className="gallery-removed">Verwijderd door gast</p>
+                  ) : null}
                   <p className="gallery-date">
                     {new Date(upload.uploaded_at).toLocaleDateString('nl-NL', {
                       hour: '2-digit',

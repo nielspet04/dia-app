@@ -55,6 +55,8 @@ export default function AdminSlideshow({ onExit, onLogout }) {
   }, []);
 
   const slides = useMemo(() => uploads.filter((upload) => {
+    if (upload.guest_removed) return false;
+
     const uploadType = upload.media_type || '';
     const ext = upload.filename.split('.').pop().toLowerCase();
     return uploadType === 'photo'
