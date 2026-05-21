@@ -1481,6 +1481,62 @@ body::after {
   margin-top: 6px;
 }
 
+.queue-card {
+  margin-top: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 250, 240, 0.66);
+  padding: 14px;
+  box-shadow: 0 12px 28px rgba(84, 98, 75, 0.08);
+}
+
+.queue-card h3 {
+  font-family: Georgia, "Times New Roman", serif;
+  color: var(--sage-deep);
+  font-size: 1.22rem;
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+
+.queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.queue-item {
+  display: grid;
+  grid-template-columns: 42px auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.queue-item img {
+  width: 42px;
+  height: 42px;
+  border-radius: 7px;
+  object-fit: cover;
+  box-shadow: 0 8px 16px rgba(84, 98, 75, 0.14);
+}
+
+.queue-item .order {
+  min-width: 24px;
+  padding: 4px 7px;
+  font-size: 0.72rem;
+}
+
+.queue-item .request-info {
+  min-width: 0;
+}
+
+.queue-item .request-track,
+.queue-item .request-artist {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .slideshow-empty {
   color: rgba(248, 244, 235, 0.82);
   text-align: center;
@@ -1550,6 +1606,24 @@ html:fullscreen .slideshow-actions {
 
   .now-playing-card h3 {
     font-size: 1.35rem;
+  }
+
+  .queue-card {
+    padding: 11px;
+  }
+
+  .queue-card h3 {
+    font-size: 1.08rem;
+  }
+
+  .queue-item {
+    grid-template-columns: 34px auto minmax(0, 1fr);
+    gap: 7px;
+  }
+
+  .queue-item img {
+    width: 34px;
+    height: 34px;
   }
 }
 

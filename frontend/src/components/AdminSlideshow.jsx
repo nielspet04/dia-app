@@ -7,6 +7,7 @@ const SLIDE_DURATION_MS = 8000;
 export default function AdminSlideshow({ onExit, onLogout }) {
   const [uploads, setUploads] = useState([]);
   const [nowPlaying, setNowPlaying] = useState(null);
+  const [spotifyQueue, setSpotifyQueue] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [clock, setClock] = useState(0);
@@ -16,9 +17,10 @@ export default function AdminSlideshow({ onExit, onLogout }) {
 
     const loadInitialSlideshowData = async () => {
       try {
-        const [uploadsResult, nowPlayingResult] = await Promise.allSettled([
+        const [uploadsResult, nowPlayingResult, queueResult] = await Promise.allSettled([
           axios.get(`${API_BASE}/uploads`),
-          axios.get(`${API_BASE}/spotify/now-playing`)
+          axios.get(`${API_BASE}/spotify/now-playing`),
+          axios.get(`${API_BASE}/spotify/queue`)
         ]);
 
         if (isMounted) {
@@ -34,6 +36,13 @@ export default function AdminSlideshow({ onExit, onLogout }) {
             setNowPlaying(null);
             console.error('Failed to load Spotify now playing:', nowPlayingResult.reason);
           }
+
+          if (queueResult.status === 'fulfilled') {
+            setSpotifyQueue(queueResult.value.data?.queue || []);
+          } else {
+            setSpotifyQueue([]);
+            console.error('Failed to load Spotify queue:', queueResult.reason);
+          }
         }
       } catch (error) {
         console.error('Failed to load slideshow data:', error);
@@ -46,9 +55,10 @@ export default function AdminSlideshow({ onExit, onLogout }) {
 
     const refreshInterval = setInterval(async () => {
       try {
-        const [uploadsResult, nowPlayingResult] = await Promise.allSettled([
+        const [uploadsResult, nowPlayingResult, queueResult] = await Promise.allSettled([
           axios.get(`${API_BASE}/uploads`),
-          axios.get(`${API_BASE}/spotify/now-playing`)
+          axios.get(`${API_BASE}/spotify/now-playing`),
+          axios.get(`${API_BASE}/spotify/queue`)
         ]);
 
         if (uploadsResult.status === 'fulfilled') {
@@ -62,6 +72,13 @@ export default function AdminSlideshow({ onExit, onLogout }) {
         } else {
           setNowPlaying(null);
           console.error('Failed to refresh Spotify now playing:', nowPlayingResult.reason);
+        }
+
+        if (queueResult.status === 'fulfilled') {
+          setSpotifyQueue(queueResult.value.data?.queue || []);
+        } else {
+          setSpotifyQueue([]);
+          console.error('Failed to refresh Spotify queue:', queueResult.reason);
         }
       } catch (error) {
         console.error('Failed to refresh slideshow data:', error);
@@ -217,6 +234,28 @@ export default function AdminSlideshow({ onExit, onLogout }) {
             Er speelt momenteel geen Spotify nummer, of Spotify moet opnieuw gekoppeld worden.
           </p>
         )}
+
+        <section className="queue-card">
+          <h3>Volgende nummers</h3>
+          {spotifyQueue.length > 0 ? (
+            <div className="queue-list">
+              {spotifyQueue.map((queueTrack, index) => (
+                <div key={`${queueTrack.id}-${index}`} className="queue-item">
+                  {queueTrack.image && (
+                    <img src={queueTrack.image} alt="" />
+                  )}
+                  <span className="order">{index + 1}</span>
+                  <div className="request-info">
+                    <p className="request-track">{queueTrack.name}</p>
+                    <p className="request-artist">{queueTrack.artist}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="slideshow-empty compact">Geen volgende nummers gevonden.</p>
+          )}
+        </section>
       </aside>
     </div>
   );
