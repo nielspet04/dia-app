@@ -434,12 +434,25 @@ app.post('/api/upload', upload.array('files', 6), (req, res) => {
       insert.finalize((finalizeErr) => {
         if (finalizeErr) return res.status(500).json({ error: finalizeErr.message });
 
-        res.json({
-          success: true,
-          files: uploaded,
-          remaining: remaining - uploaded.length,
-          message: `${uploaded.length} bestanden succesvol geupload`
-        });
+        db.all(
+          `SELECT *
+           FROM uploads
+           WHERE session_id = ?
+             AND (media_type = 'photo' OR (media_type IS NULL AND LOWER(filetype) IN (${photoExtensionPlaceholders})))
+           ORDER BY uploaded_at DESC`,
+          [sessionId, ...PHOTO_EXTENSIONS],
+          (photosErr, photoRows) => {
+            if (photosErr) return res.status(500).json({ error: photosErr.message });
+
+            res.json({
+              success: true,
+              files: uploaded,
+              photos: photoRows || [],
+              remaining: remaining - uploaded.length,
+              message: `${uploaded.length} bestanden succesvol geupload`
+            });
+          }
+        );
       });
     });
   } catch (error) {

@@ -19,22 +19,27 @@ export default function UploadMedia({ guestName }) {
     let isMounted = true;
 
     const loadPhotoState = async () => {
-      try {
-        const [countResponse, photosResponse] = await Promise.all([
-          axios.get(`${API_BASE}/uploads/count`, {
-            params: { sessionId }
-          }),
-          axios.get(`${API_BASE}/uploads/mine`, {
-            params: { sessionId }
-          })
-        ]);
+      const countRequest = axios.get(`${API_BASE}/uploads/count`, {
+        params: { sessionId }
+      });
+      const photosRequest = axios.get(`${API_BASE}/uploads/mine`, {
+        params: { sessionId }
+      });
 
-        if (isMounted) {
-          setRemainingUploads(countResponse.data.remaining);
-          setUploadedPhotos(photosResponse.data || []);
-        }
-      } catch (error) {
-        console.error('Failed to load photo state:', error);
+      const [countResult, photosResult] = await Promise.allSettled([countRequest, photosRequest]);
+
+      if (!isMounted) return;
+
+      if (countResult.status === 'fulfilled') {
+        setRemainingUploads(countResult.value.data.remaining);
+      } else {
+        console.error('Failed to load upload count:', countResult.reason);
+      }
+
+      if (photosResult.status === 'fulfilled') {
+        setUploadedPhotos(photosResult.value.data || []);
+      } else {
+        console.error('Failed to load own photos:', photosResult.reason);
       }
     };
 
@@ -48,17 +53,26 @@ export default function UploadMedia({ guestName }) {
   const getFileKey = (file) => `${file.name}-${file.size}-${file.lastModified}`;
 
   const refreshPhotoState = async () => {
-    const [countResponse, photosResponse] = await Promise.all([
-      axios.get(`${API_BASE}/uploads/count`, {
-        params: { sessionId }
-      }),
-      axios.get(`${API_BASE}/uploads/mine`, {
-        params: { sessionId }
-      })
-    ]);
+    const countRequest = axios.get(`${API_BASE}/uploads/count`, {
+      params: { sessionId }
+    });
+    const photosRequest = axios.get(`${API_BASE}/uploads/mine`, {
+      params: { sessionId }
+    });
 
-    setRemainingUploads(countResponse.data.remaining);
-    setUploadedPhotos(photosResponse.data || []);
+    const [countResult, photosResult] = await Promise.allSettled([countRequest, photosRequest]);
+
+    if (countResult.status === 'fulfilled') {
+      setRemainingUploads(countResult.value.data.remaining);
+    } else {
+      console.error('Failed to refresh upload count:', countResult.reason);
+    }
+
+    if (photosResult.status === 'fulfilled') {
+      setUploadedPhotos(photosResult.value.data || []);
+    } else {
+      console.error('Failed to refresh own photos:', photosResult.reason);
+    }
   };
 
   const handleFileSelect = (e) => {
@@ -142,6 +156,9 @@ export default function UploadMedia({ guestName }) {
 
       setMessage(`✅ ${response.data.message}`);
       setRemainingUploads(response.data.remaining);
+      if (response.data.photos) {
+        setUploadedPhotos(response.data.photos);
+      }
       setFiles([]);
       setProgress(0);
       refreshPhotoState();
