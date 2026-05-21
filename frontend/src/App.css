@@ -334,19 +334,18 @@ body::after {
 .guest-name-panel::after {
   content: "";
   position: absolute;
-  right: 16px;
-  top: 13px;
-  width: 72px;
-  height: 28px;
-  opacity: 0.62;
+  right: 12px;
+  bottom: 10px;
+  width: 48px;
+  height: 44px;
+  opacity: 0.24;
   pointer-events: none;
   background:
-    radial-gradient(circle at 18px 14px, var(--petal) 0 5px, transparent 6px),
-    radial-gradient(circle at 26px 8px, var(--petal) 0 5px, transparent 6px),
-    radial-gradient(circle at 34px 14px, var(--petal) 0 5px, transparent 6px),
-    radial-gradient(circle at 26px 20px, var(--petal) 0 5px, transparent 6px),
-    radial-gradient(circle at 26px 14px, var(--gold-deep) 0 2px, transparent 3px),
-    radial-gradient(ellipse at 56px 14px, rgba(121, 138, 114, 0.58) 0 42%, transparent 45%);
+    radial-gradient(ellipse at 17px 28px, rgba(121, 138, 114, 0.55) 0 34%, transparent 37%),
+    radial-gradient(ellipse at 30px 20px, rgba(121, 138, 114, 0.44) 0 34%, transparent 37%),
+    radial-gradient(ellipse at 38px 32px, rgba(121, 138, 114, 0.5) 0 34%, transparent 37%),
+    linear-gradient(130deg, transparent 0 47%, rgba(84, 98, 75, 0.5) 48% 52%, transparent 53%);
+  transform: rotate(-18deg);
 }
 
 .guest-name-panel .guest-name-input {
