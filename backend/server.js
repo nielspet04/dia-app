@@ -25,8 +25,6 @@ const VIDEO_EXTENSIONS = ['mp4', 'mov', 'webm'];
 const AUDIO_EXTENSIONS = ['webm', 'm4a', 'mp3', 'wav', 'ogg'];
 const SPOTIFY_SCOPE = 'playlist-modify-public playlist-modify-private user-read-currently-playing';
 const SPOTIFY_MARKET = process.env.SPOTIFY_MARKET || 'BE';
-const MUSIXMATCH_API_KEY = process.env.MUSIXMATCH_API_KEY || '';
-const MUSIXMATCH_COUNTRY = process.env.MUSIXMATCH_COUNTRY || 'BE';
 const allowedOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim()).filter(Boolean)
   : ['http://localhost:5173'];
@@ -237,171 +235,6 @@ const removeSpotifyPlaylistTrack = async (trackUri) => {
       body: JSON.stringify({ items: [{ uri: trackUri }] })
     }
   );
-};
-
-const parseLrcTimestamp = (timestamp) => {
-  const match = timestamp.match(/^(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?$/);
-  if (!match) return null;
-
-  const minutes = Number(match[1]);
-  const seconds = Number(match[2]);
-  const fraction = match[3] || '0';
-  return (minutes * 60 * 1000) + (seconds * 1000) + Number(fraction.padEnd(3, '0'));
-};
-
-const parseLrc = (subtitleBody = '') => subtitleBody
-  .split('\n')
-  .map((line) => {
-    const match = line.match(/^\[(\d{1,2}:\d{2}(?:\.\d{1,3})?)\]\s*(.*)$/);
-    if (!match) return null;
-    const timeMs = parseLrcTimestamp(match[1]);
-    const text = match[2].trim();
-    if (timeMs === null || !text) return null;
-    return { timeMs, text };
-  })
-  .filter(Boolean);
-
-const parsePlainLyrics = (lyricsBody = '', durationMs = 0) => {
-  const lines = lyricsBody
-    .split('\n')
-    .map(line => line.trim())
-    .filter(line => line && !line.startsWith('*******'));
-  const stepMs = lines.length && durationMs ? durationMs / lines.length : 3500;
-
-  return lines.map((text, index) => ({
-    timeMs: Math.round(index * stepMs),
-    text
-  }));
-};
-
-const simplifyTrackTitle = (title = '') => title
-  .replace(/\s*-\s*radio edit.*$/i, '')
-  .replace(/\s*-\s*remaster.*$/i, '')
-  .replace(/\s*\([^)]*(feat|with|remix|edit|version|live)[^)]*\)/ig, '')
-  .replace(/\s*\[[^\]]*(feat|with|remix|edit|version|live)[^\]]*\]/ig, '')
-  .replace(/\s+/g, ' ')
-  .trim();
-
-const musixmatchFetch = async (method, params = {}) => {
-  if (!MUSIXMATCH_API_KEY) {
-    throw new Error('Musixmatch API key ontbreekt');
-  }
-
-  const url = new URL(`https://api.musixmatch.com/ws/1.1/${method}`);
-  url.searchParams.set('format', 'json');
-  url.searchParams.set('apikey', MUSIXMATCH_API_KEY);
-  url.searchParams.set('country', MUSIXMATCH_COUNTRY);
-
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      url.searchParams.set(key, value);
-    }
-  });
-
-  const response = await fetch(url.toString());
-  const payload = await response.json().catch(() => ({}));
-  const statusCode = payload.message?.header?.status_code || response.status;
-
-  if (!response.ok || statusCode >= 400) {
-    throw new Error(`Musixmatch ${statusCode}: lyrics niet beschikbaar`);
-  }
-
-  return payload.message?.body || {};
-};
-
-const findMusixmatchTrack = async ({ name, artist }) => {
-  const cleanName = simplifyTrackTitle(name);
-  const primaryArtist = String(artist || '').split(',')[0].trim();
-
-  const matchedBody = await musixmatchFetch('matcher.track.get', {
-    q_track: cleanName || name,
-    q_artist: primaryArtist || artist
-  });
-
-  if (matchedBody.track?.track_id) {
-    return matchedBody.track;
-  }
-
-  const searchBody = await musixmatchFetch('track.search', {
-    q_track: cleanName || name,
-    q_artist: primaryArtist || artist,
-    page_size: 8,
-    page: 1,
-    s_track_rating: 'desc',
-    f_has_lyrics: 1
-  });
-
-  const tracks = searchBody.track_list?.map(item => item.track).filter(Boolean) || [];
-  return tracks.find(track => track.has_subtitles) || tracks[0] || null;
-};
-
-const getMusixmatchLyrics = async ({ name, artist, durationMs }) => {
-  if (!MUSIXMATCH_API_KEY || !name || !artist) {
-    return {
-      provider: 'Musixmatch',
-      status: MUSIXMATCH_API_KEY ? 'missing-track' : 'missing-key',
-      synced: false,
-      lines: []
-    };
-  }
-
-  try {
-    const matchedTrack = await findMusixmatchTrack({ name, artist });
-
-    if (!matchedTrack?.track_id) {
-      return { provider: 'Musixmatch', status: 'not-found', synced: false, lines: [] };
-    }
-
-    if (matchedTrack.has_subtitles) {
-      try {
-        const subtitleBody = await musixmatchFetch('track.subtitle.get', {
-          track_id: matchedTrack.track_id,
-          subtitle_format: 'LRC',
-          f_subtitle_length: durationMs ? Math.round(durationMs / 1000) : undefined,
-          f_subtitle_length_max_deviation: 10
-        });
-        const subtitle = subtitleBody.subtitle;
-        const lines = parseLrc(subtitle?.subtitle_body || '');
-
-        if (lines.length) {
-          return {
-            provider: 'Musixmatch',
-            status: 'ok',
-            synced: true,
-            language: subtitle?.subtitle_language || '',
-            copyright: subtitle?.lyrics_copyright || '',
-            lines
-          };
-        }
-      } catch (subtitleErr) {
-        console.error('Musixmatch synced lyrics error:', subtitleErr);
-      }
-    }
-
-    const lyricsBody = await musixmatchFetch('track.lyrics.get', {
-      track_id: matchedTrack.track_id
-    });
-    const lyrics = lyricsBody.lyrics;
-    const lines = parsePlainLyrics(lyrics?.lyrics_body || '', durationMs);
-
-    return {
-      provider: 'Musixmatch',
-      status: lines.length ? 'unsynced' : 'empty',
-      synced: false,
-      language: lyrics?.lyrics_language || '',
-      copyright: lyrics?.lyrics_copyright || '',
-      lines
-    };
-  } catch (error) {
-    console.error('Musixmatch lyrics error:', error);
-    return {
-      provider: 'Musixmatch',
-      status: 'unavailable',
-      synced: false,
-      lines: [],
-      error: error.message
-    };
-  }
 };
 
 db.serialize(() => {
@@ -901,14 +734,12 @@ app.get('/api/spotify/now-playing', async (req, res) => {
       image: item.album?.images?.[0]?.url || item.album?.images?.[1]?.url || item.album?.images?.[2]?.url || '',
       externalUrl: item.external_urls?.spotify || ''
     };
-    const lyrics = await getMusixmatchLyrics(track);
 
     res.json({
       isPlaying: Boolean(payload.is_playing),
       progressMs: payload.progress_ms || 0,
       fetchedAt: Date.now(),
-      track,
-      lyrics
+      track
     });
   } catch (error) {
     console.error('Spotify now playing error:', error);

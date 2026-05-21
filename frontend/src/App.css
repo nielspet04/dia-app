@@ -1459,50 +1459,6 @@ body::after {
   margin-top: 6px;
 }
 
-.lyrics-panel {
-  margin-top: 18px;
-  padding: 13px;
-  border: 1px dashed rgba(121, 138, 114, 0.32);
-  border-radius: 8px;
-  background: rgba(217, 213, 186, 0.18);
-}
-
-.lyrics-panel > p:last-child {
-  color: var(--muted);
-  font-size: 0.88rem;
-  line-height: 1.45;
-}
-
-.lyrics-lines {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-height: 160px;
-  justify-content: center;
-}
-
-.lyrics-lines p {
-  color: rgba(63, 68, 58, 0.54);
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 1.02rem;
-  line-height: 1.22;
-  text-align: center;
-  transition: all 0.25s ease;
-}
-
-.lyrics-lines p.active {
-  color: var(--sage-deep);
-  font-size: 1.28rem;
-  font-weight: 700;
-}
-
-.lyrics-provider {
-  margin-top: 12px;
-  color: var(--muted);
-  font-size: 0.76rem;
-  text-align: center;
-}
-
 .slideshow-empty {
   color: rgba(248, 244, 235, 0.82);
   text-align: center;

@@ -76,14 +76,6 @@ export default function AdminSlideshow({ onExit, onLogout }) {
   const progressPercent = track?.durationMs
     ? Math.min(100, Math.round((liveProgressMs / track.durationMs) * 100))
     : 0;
-  const lyricLines = nowPlaying?.lyrics?.lines || [];
-  const activeLyricIndex = lyricLines.reduce((activeIndex, line, index) => (
-    line.timeMs <= liveProgressMs ? index : activeIndex
-  ), -1);
-  const visibleLyrics = lyricLines.slice(
-    Math.max(0, activeLyricIndex - 2),
-    Math.min(lyricLines.length, Math.max(activeLyricIndex + 3, 5))
-  );
 
   const formatTime = (milliseconds = 0) => {
     const totalSeconds = Math.floor(milliseconds / 1000);
@@ -196,34 +188,6 @@ export default function AdminSlideshow({ onExit, onLogout }) {
             <div className="now-playing-times">
               <span>{formatTime(liveProgressMs)}</span>
               <span>{formatTime(track.durationMs)}</span>
-            </div>
-
-            <div className="lyrics-panel">
-              <p className="current-song-label">Lyrics</p>
-              {visibleLyrics.length > 0 ? (
-                <div className="lyrics-lines">
-                  {visibleLyrics.map((line) => (
-                    <p
-                      key={`${line.timeMs}-${line.text}`}
-                      className={line.timeMs <= liveProgressMs ? 'active' : ''}
-                    >
-                      {line.text}
-                    </p>
-                  ))}
-                </div>
-              ) : (
-                <p>
-                  {nowPlaying.lyrics?.status === 'missing-key'
-                    ? 'Voeg MUSIXMATCH_API_KEY toe om live lyrics te tonen.'
-                    : 'Geen gesynchroniseerde lyrics gevonden voor dit nummer.'}
-                </p>
-              )}
-              {nowPlaying.lyrics?.provider && (
-                <p className="lyrics-provider">
-                  Lyrics via {nowPlaying.lyrics.provider}
-                  {!nowPlaying.lyrics.synced && visibleLyrics.length > 0 ? ' - timing benaderd' : ''}
-                </p>
-              )}
             </div>
           </div>
         ) : (
