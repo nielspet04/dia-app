@@ -89,7 +89,7 @@ function App() {
         <>
           <section className="guest-name-panel">
             <label className="guest-name-label" htmlFor="guest-name">
-              Jouw naam
+              Jouw volledige naam
             </label>
             <input
               id="guest-name"
