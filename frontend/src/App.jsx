@@ -3,6 +3,7 @@ import './App.css';
 import UploadMedia from './components/UploadMedia';
 import UploadVideo from './components/UploadVideo';
 import UploadVoice from './components/UploadVoice';
+import TextMessage from './components/TextMessage';
 import SpotifyRequest from './components/SpotifyRequest';
 import AdminGallery from './components/AdminGallery';
 import AdminSlideshow from './components/AdminSlideshow';
@@ -67,8 +68,8 @@ function App() {
         <div className="intro-text">
           <p>
             Help ons een digitaal gastenboek vol echte momenten te maken. Deel je mooiste,
-            grappigste en zotste foto's of video, spreek een kort bericht in en request het
-            nummer dat volgens jou niet mag ontbreken op het feest.
+            grappigste en zotste foto's of video, spreek of schrijf een bericht en request
+            het nummer dat volgens jou niet mag ontbreken op het feest.
           </p>
           <p>
             Per gast kan je maximaal 5 foto's, 1 video, 1 spraakbericht en 1 liedje insturen.
@@ -77,7 +78,8 @@ function App() {
           <div className="intro-limits" aria-label="Mogelijkheden en limieten">
             <span>Foto's: max. 5</span>
             <span>Video: max. 1</span>
-            <span>Bericht: max. 1</span>
+            <span>Spraak: max. 1</span>
+            <span>Tekst: max. 1</span>
             <span>Liedje: max. 1</span>
           </div>
         </div>
@@ -155,6 +157,13 @@ function App() {
             >
               Bericht
             </button>
+            <button
+              className={`tab ${activeTab === 'text' ? 'active' : ''} ${!hasGuestName ? 'disabled' : ''}`}
+              onClick={() => requireGuestName('text')}
+              aria-disabled={!hasGuestName}
+            >
+              Wens
+            </button>
             <button 
               className={`tab ${activeTab === 'spotify' ? 'active' : ''} ${!hasGuestName ? 'disabled' : ''}`}
               onClick={() => requireGuestName('spotify')}
@@ -168,6 +177,7 @@ function App() {
             {activeTab === 'upload' && <UploadMedia guestName={guestName} />}
             {activeTab === 'video' && <UploadVideo guestName={guestName} />}
             {activeTab === 'voice' && <UploadVoice guestName={guestName} />}
+            {activeTab === 'text' && <TextMessage guestName={guestName} />}
             {activeTab === 'spotify' && <SpotifyRequest guestName={guestName} />}
           </main>
         </>

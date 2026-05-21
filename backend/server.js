@@ -17,6 +17,7 @@ const MAX_PHOTO_UPLOADS_PER_SESSION = 5;
 const MAX_VIDEO_UPLOADS_PER_SESSION = 1;
 const MAX_AUDIO_UPLOADS_PER_SESSION = 1;
 const MAX_GUEST_NAME_LENGTH = 80;
+const MAX_TEXT_MESSAGE_LENGTH = 800;
 const MAX_UPLOAD_SIZE_MB = Number(process.env.MAX_UPLOAD_SIZE_MB || 250);
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'guyenria123';
 const PHOTO_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif'];
@@ -303,6 +304,18 @@ db.serialize(() => {
       }
     });
   });
+
+  // Text messages table
+  db.run(`
+    CREATE TABLE IF NOT EXISTS guest_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id TEXT NOT NULL UNIQUE,
+      guest_name TEXT NOT NULL,
+      message TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
   // Settings table
   db.run(`
@@ -887,6 +900,88 @@ app.get('/api/spotify/count', (req, res) => {
       remaining: Math.max(0, 1 - count),
       limit: 1
     });
+  });
+});
+
+app.get('/api/messages', (req, res) => {
+  db.all('SELECT * FROM guest_messages ORDER BY updated_at DESC', (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows || []);
+  });
+});
+
+app.get('/api/messages/current', (req, res) => {
+  const sessionId = String(req.query.sessionId || '').trim();
+
+  if (!sessionId) {
+    return res.status(400).json({ error: 'Sessie ontbreekt' });
+  }
+
+  db.get('SELECT * FROM guest_messages WHERE session_id = ?', [sessionId], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(row || null);
+  });
+});
+
+app.post('/api/messages', (req, res) => {
+  const sessionId = String(req.body.sessionId || '').trim();
+  const guestName = String(req.body.guestName || '').trim().replace(/\s+/g, ' ');
+  const message = String(req.body.message || '').trim();
+
+  if (!sessionId) {
+    return res.status(400).json({ error: 'Sessie ontbreekt, herlaad de pagina en probeer opnieuw' });
+  }
+
+  if (!guestName) {
+    return res.status(400).json({ error: 'Vul eerst je naam in' });
+  }
+
+  if (guestName.length > MAX_GUEST_NAME_LENGTH) {
+    return res.status(400).json({ error: `Naam mag maximaal ${MAX_GUEST_NAME_LENGTH} tekens zijn` });
+  }
+
+  if (!message) {
+    return res.status(400).json({ error: 'Schrijf eerst een boodschap' });
+  }
+
+  if (message.length > MAX_TEXT_MESSAGE_LENGTH) {
+    return res.status(400).json({ error: `Boodschap mag maximaal ${MAX_TEXT_MESSAGE_LENGTH} tekens zijn` });
+  }
+
+  db.run(
+    `INSERT INTO guest_messages (session_id, guest_name, message)
+     VALUES (?, ?, ?)
+     ON CONFLICT(session_id) DO UPDATE SET
+       guest_name = excluded.guest_name,
+       message = excluded.message,
+       updated_at = CURRENT_TIMESTAMP`,
+    [sessionId, guestName, message],
+    function saveMessage(err) {
+      if (err) return res.status(500).json({ error: err.message });
+
+      db.get('SELECT * FROM guest_messages WHERE session_id = ?', [sessionId], (selectErr, row) => {
+        if (selectErr) return res.status(500).json({ error: selectErr.message });
+        res.json({ success: true, message: 'Boodschap opgeslagen', data: row });
+      });
+    }
+  );
+});
+
+app.delete('/api/messages/:id', (req, res) => {
+  if (req.get('x-admin-password') !== ADMIN_PASSWORD) {
+    return res.status(401).json({ error: 'Niet bevoegd' });
+  }
+
+  const messageId = Number(req.params.id);
+
+  if (!Number.isInteger(messageId)) {
+    return res.status(400).json({ error: 'Ongeldig bericht id' });
+  }
+
+  db.run('DELETE FROM guest_messages WHERE id = ?', [messageId], function deleteMessage(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    if (this.changes === 0) return res.status(404).json({ error: 'Boodschap niet gevonden' });
+    res.json({ success: true, message: 'Boodschap verwijderd' });
   });
 });
 
