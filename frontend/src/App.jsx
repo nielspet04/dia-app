@@ -162,7 +162,7 @@ function App() {
               onClick={() => requireGuestName('text')}
               aria-disabled={!hasGuestName}
             >
-              Wens
+              Boodschap
             </button>
             <button 
               className={`tab ${activeTab === 'spotify' ? 'active' : ''} ${!hasGuestName ? 'disabled' : ''}`}
