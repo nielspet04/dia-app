@@ -16,14 +16,24 @@ export default function AdminSlideshow({ onExit, onLogout }) {
 
     const loadInitialSlideshowData = async () => {
       try {
-        const [uploadsResponse, nowPlayingResponse] = await Promise.all([
+        const [uploadsResult, nowPlayingResult] = await Promise.allSettled([
           axios.get(`${API_BASE}/uploads`),
           axios.get(`${API_BASE}/spotify/now-playing`)
         ]);
 
         if (isMounted) {
-          setUploads(uploadsResponse.data || []);
-          setNowPlaying(nowPlayingResponse.data || null);
+          if (uploadsResult.status === 'fulfilled') {
+            setUploads(uploadsResult.value.data || []);
+          } else {
+            console.error('Failed to load slideshow uploads:', uploadsResult.reason);
+          }
+
+          if (nowPlayingResult.status === 'fulfilled') {
+            setNowPlaying(nowPlayingResult.value.data || null);
+          } else {
+            setNowPlaying(null);
+            console.error('Failed to load Spotify now playing:', nowPlayingResult.reason);
+          }
         }
       } catch (error) {
         console.error('Failed to load slideshow data:', error);
@@ -36,13 +46,23 @@ export default function AdminSlideshow({ onExit, onLogout }) {
 
     const refreshInterval = setInterval(async () => {
       try {
-        const [uploadsResponse, nowPlayingResponse] = await Promise.all([
+        const [uploadsResult, nowPlayingResult] = await Promise.allSettled([
           axios.get(`${API_BASE}/uploads`),
           axios.get(`${API_BASE}/spotify/now-playing`)
         ]);
 
-        setUploads(uploadsResponse.data || []);
-        setNowPlaying(nowPlayingResponse.data || null);
+        if (uploadsResult.status === 'fulfilled') {
+          setUploads(uploadsResult.value.data || []);
+        } else {
+          console.error('Failed to refresh slideshow uploads:', uploadsResult.reason);
+        }
+
+        if (nowPlayingResult.status === 'fulfilled') {
+          setNowPlaying(nowPlayingResult.value.data || null);
+        } else {
+          setNowPlaying(null);
+          console.error('Failed to refresh Spotify now playing:', nowPlayingResult.reason);
+        }
       } catch (error) {
         console.error('Failed to refresh slideshow data:', error);
       }
