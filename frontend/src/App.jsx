@@ -55,6 +55,8 @@ function App() {
   return (
     <div className="app">
       <header className="header">
+        <div className="hero-sparkles" aria-hidden="true" />
+        <p className="hero-kicker">Jouw momenten, ons gastenboek</p>
         <h1>Trouw van Guy en Ria</h1>
         <div className="intro-text">
           <p>
@@ -66,6 +68,12 @@ function App() {
             Per gast kan je maximaal 5 foto's, 1 video, 1 spraakbericht en 1 liedje insturen.
             Je liedje wordt meteen toegevoegd aan onze Spotify playlist.
           </p>
+          <div className="intro-limits" aria-label="Mogelijkheden en limieten">
+            <span>Foto's: max. 5</span>
+            <span>Video: max. 1</span>
+            <span>Bericht: max. 1</span>
+            <span>Liedje: max. 1</span>
+          </div>
         </div>
       </header>
 
