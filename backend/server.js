@@ -341,6 +341,27 @@ app.get('/api/uploads/count', (req, res) => {
   });
 });
 
+app.get('/api/uploads/mine', (req, res) => {
+  const sessionId = String(req.query.sessionId || '').trim();
+
+  if (!sessionId) {
+    return res.status(400).json({ error: 'Sessie ontbreekt' });
+  }
+
+  db.all(
+    `SELECT *
+     FROM uploads
+     WHERE session_id = ?
+       AND (media_type = 'photo' OR (media_type IS NULL AND LOWER(filetype) IN (${photoExtensionPlaceholders})))
+     ORDER BY uploaded_at DESC`,
+    [sessionId, ...PHOTO_EXTENSIONS],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(rows || []);
+    }
+  );
+});
+
 // Upload media
 app.post('/api/upload', upload.array('files', 6), (req, res) => {
   try {
@@ -889,6 +910,53 @@ app.delete('/api/uploads/:id', (req, res) => {
     db.run('DELETE FROM uploads WHERE id = ?', [uploadId], (deleteErr) => {
       if (deleteErr) return res.status(500).json({ error: deleteErr.message });
       res.json({ success: true, message: 'Foto verwijderd' });
+    });
+  });
+});
+
+app.delete('/api/uploads/:id/mine', (req, res) => {
+  const uploadId = Number(req.params.id);
+  const sessionId = String(req.body?.sessionId || req.query.sessionId || '').trim();
+
+  if (!Number.isInteger(uploadId)) {
+    return res.status(400).json({ error: 'Ongeldig upload id' });
+  }
+
+  if (!sessionId) {
+    return res.status(400).json({ error: 'Sessie ontbreekt' });
+  }
+
+  db.get('SELECT * FROM uploads WHERE id = ? AND session_id = ?', [uploadId, sessionId], async (err, uploadRow) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!uploadRow) return res.status(404).json({ error: 'Foto niet gevonden voor deze sessie' });
+
+    const uploadType = uploadRow.media_type || (PHOTO_EXTENSIONS.includes(String(uploadRow.filetype || '').toLowerCase()) ? 'photo' : 'file');
+    if (uploadType !== 'photo') {
+      return res.status(400).json({ error: 'Alleen eigen foto\'s kunnen hier verwijderd worden' });
+    }
+
+    try {
+      await removeUploadFile(uploadRow.filepath);
+    } catch (fileErr) {
+      console.error('Failed to delete own upload file:', fileErr);
+      return res.status(500).json({ error: 'Bestand verwijderen mislukt' });
+    }
+
+    db.run('DELETE FROM uploads WHERE id = ? AND session_id = ?', [uploadId, sessionId], (deleteErr) => {
+      if (deleteErr) return res.status(500).json({ error: deleteErr.message });
+
+      countUploadsByType(sessionId, 'photo', (countErr, row) => {
+        if (countErr) return res.status(500).json({ error: countErr.message });
+
+        const count = row?.count || 0;
+        res.json({
+          success: true,
+          message: 'Foto verwijderd',
+          count,
+          remaining: Math.max(0, MAX_PHOTO_UPLOADS_PER_SESSION - count),
+          limit: MAX_PHOTO_UPLOADS_PER_SESSION
+        });
+      });
     });
   });
 });

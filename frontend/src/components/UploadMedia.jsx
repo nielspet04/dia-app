@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { API_BASE } from '../config';
+import { API_BASE, MEDIA_BASE } from '../config';
 import { getUploadSessionId, saveGuestName } from '../uploadSession';
 
 const MAX_UPLOADS = 5;
@@ -12,23 +12,54 @@ export default function UploadMedia({ guestName }) {
   const [progress, setProgress] = useState(0);
   const [sessionId] = useState(getUploadSessionId);
   const [remainingUploads, setRemainingUploads] = useState(MAX_UPLOADS);
+  const [uploadedPhotos, setUploadedPhotos] = useState([]);
+  const [deletingPhotoId, setDeletingPhotoId] = useState(null);
 
   useEffect(() => {
-    const loadUploadCount = async () => {
+    let isMounted = true;
+
+    const loadPhotoState = async () => {
       try {
-        const response = await axios.get(`${API_BASE}/uploads/count`, {
-          params: { sessionId }
-        });
-        setRemainingUploads(response.data.remaining);
+        const [countResponse, photosResponse] = await Promise.all([
+          axios.get(`${API_BASE}/uploads/count`, {
+            params: { sessionId }
+          }),
+          axios.get(`${API_BASE}/uploads/mine`, {
+            params: { sessionId }
+          })
+        ]);
+
+        if (isMounted) {
+          setRemainingUploads(countResponse.data.remaining);
+          setUploadedPhotos(photosResponse.data || []);
+        }
       } catch (error) {
-        console.error('Failed to load upload count:', error);
+        console.error('Failed to load photo state:', error);
       }
     };
 
-    loadUploadCount();
+    loadPhotoState();
+
+    return () => {
+      isMounted = false;
+    };
   }, [sessionId]);
 
   const getFileKey = (file) => `${file.name}-${file.size}-${file.lastModified}`;
+
+  const refreshPhotoState = async () => {
+    const [countResponse, photosResponse] = await Promise.all([
+      axios.get(`${API_BASE}/uploads/count`, {
+        params: { sessionId }
+      }),
+      axios.get(`${API_BASE}/uploads/mine`, {
+        params: { sessionId }
+      })
+    ]);
+
+    setRemainingUploads(countResponse.data.remaining);
+    setUploadedPhotos(photosResponse.data || []);
+  };
 
   const handleFileSelect = (e) => {
     const selectedFiles = Array.from(e.target.files);
@@ -113,6 +144,7 @@ export default function UploadMedia({ guestName }) {
       setRemainingUploads(response.data.remaining);
       setFiles([]);
       setProgress(0);
+      refreshPhotoState();
 
       // Reset after 3 seconds
       setTimeout(() => {
@@ -123,6 +155,29 @@ export default function UploadMedia({ guestName }) {
       console.error('Upload error:', error);
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleDeletePhoto = async (photo) => {
+    const confirmed = window.confirm('Deze foto verwijderen zodat je een nieuwe kunt toevoegen?');
+    if (!confirmed) return;
+
+    setDeletingPhotoId(photo.id);
+    setMessage('');
+
+    try {
+      const response = await axios.delete(`${API_BASE}/uploads/${photo.id}/mine`, {
+        data: { sessionId }
+      });
+
+      setUploadedPhotos((currentPhotos) => currentPhotos.filter((item) => item.id !== photo.id));
+      setRemainingUploads(response.data.remaining);
+      setMessage('Foto verwijderd, je kunt nu een nieuwe toevoegen');
+    } catch (error) {
+      setMessage(`Verwijderen mislukt: ${error.response?.data?.error || error.message}`);
+      console.error('Delete photo error:', error);
+    } finally {
+      setDeletingPhotoId(null);
     }
   };
 
@@ -206,6 +261,37 @@ export default function UploadMedia({ guestName }) {
         </button>
 
         {message && <p className="message">{message}</p>}
+      </div>
+
+      <div className="upload-box own-photos-box">
+        <h3>Jouw geüploade foto's</h3>
+        <p className="upload-hint">
+          Wil je toch een betere foto kiezen? Verwijder eerst een foto en upload daarna een nieuwe.
+        </p>
+
+        {uploadedPhotos.length > 0 ? (
+          <div className="own-photo-grid">
+            {uploadedPhotos.map((photo) => (
+              <div key={photo.id} className="own-photo-item">
+                <img
+                  src={`${MEDIA_BASE}${photo.filepath}`}
+                  alt={photo.originalname || 'Geüploade foto'}
+                  loading="lazy"
+                />
+                <button
+                  type="button"
+                  className="delete-upload-btn own-photo-delete"
+                  onClick={() => handleDeletePhoto(photo)}
+                  disabled={deletingPhotoId === photo.id}
+                >
+                  {deletingPhotoId === photo.id ? '...' : 'Verwijder'}
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="own-photo-empty">Je hebt nog geen foto's geüpload.</p>
+        )}
       </div>
     </div>
   );
