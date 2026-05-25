@@ -1102,6 +1102,38 @@ body::after {
   margin-bottom: 18px;
 }
 
+.gallery-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 4px;
+}
+
+.export-zip-btn {
+  flex: 0 0 auto;
+  padding: 10px 14px;
+  border: 1px solid rgba(196, 165, 105, 0.58);
+  border-radius: 8px;
+  background: rgba(217, 213, 186, 0.28);
+  color: var(--sage-deep);
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 800;
+  transition: all 0.2s ease;
+}
+
+.export-zip-btn:hover:not(:disabled) {
+  background: var(--sage-deep);
+  border-color: var(--sage-deep);
+  color: var(--paper);
+}
+
+.export-zip-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .gallery-message {
   margin-bottom: 16px;
   font-size: 0.9rem;
@@ -1747,6 +1779,15 @@ html:fullscreen .slideshow-actions {
   .search-form {
     grid-template-columns: 1fr;
     flex-direction: column;
+  }
+
+  .gallery-header-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .export-zip-btn {
+    width: 100%;
   }
 
   .track-item,

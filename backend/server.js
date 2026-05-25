@@ -25,6 +25,7 @@ const VIDEO_EXTENSIONS = ['mp4', 'mov', 'webm'];
 const AUDIO_EXTENSIONS = ['webm', 'm4a', 'mp3', 'wav', 'ogg'];
 const SPOTIFY_SCOPE = 'playlist-modify-public playlist-modify-private user-read-currently-playing user-read-playback-state';
 const SPOTIFY_MARKET = process.env.SPOTIFY_MARKET || 'BE';
+const ZIP_UTF8_FLAG = 0x0800;
 const allowedOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim()).filter(Boolean)
   : ['http://localhost:5173'];
@@ -76,6 +77,128 @@ const getFileExtension = (filename) => path.extname(filename).slice(1).toLowerCa
 const isPhotoFile = (file) => file.mimetype.startsWith('image/') && PHOTO_EXTENSIONS.includes(getFileExtension(file.originalname));
 const isVideoFile = (file) => file.mimetype.startsWith('video/') && VIDEO_EXTENSIONS.includes(getFileExtension(file.originalname));
 const isAudioFile = (file) => file.mimetype.startsWith('audio/') && AUDIO_EXTENSIONS.includes(getFileExtension(file.originalname));
+const crcTable = Array.from({ length: 256 }, (_, index) => {
+  let crc = index;
+  for (let bit = 0; bit < 8; bit += 1) {
+    crc = (crc & 1) ? (0xedb88320 ^ (crc >>> 1)) : (crc >>> 1);
+  }
+  return crc >>> 0;
+});
+
+const updateCrc32 = (crc, chunk) => {
+  let nextCrc = crc;
+  for (const byte of chunk) {
+    nextCrc = crcTable[(nextCrc ^ byte) & 0xff] ^ (nextCrc >>> 8);
+  }
+  return nextCrc >>> 0;
+};
+
+const calculateFileCrc32 = (filePath) => new Promise((resolve, reject) => {
+  let crc = 0xffffffff;
+  const stream = fs.createReadStream(filePath);
+
+  stream.on('data', (chunk) => {
+    crc = updateCrc32(crc, chunk);
+  });
+  stream.on('end', () => resolve((crc ^ 0xffffffff) >>> 0));
+  stream.on('error', reject);
+});
+
+const toDosDateTime = (value) => {
+  const date = value ? new Date(value) : new Date();
+  const safeDate = Number.isNaN(date.getTime()) ? new Date() : date;
+  const year = Math.max(1980, safeDate.getFullYear());
+
+  return {
+    date: ((year - 1980) << 9) | ((safeDate.getMonth() + 1) << 5) | safeDate.getDate(),
+    time: (safeDate.getHours() << 11) | (safeDate.getMinutes() << 5) | Math.floor(safeDate.getSeconds() / 2)
+  };
+};
+
+const sanitizeZipSegment = (value, fallback) => {
+  const segment = String(value || fallback || '')
+    .trim()
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, '-')
+    .replace(/\s+/g, ' ')
+    .slice(0, 80);
+
+  return segment || fallback;
+};
+
+const createZipLocalHeader = (entry) => {
+  const filenameBuffer = Buffer.from(entry.zipPath, 'utf8');
+  const header = Buffer.alloc(30 + filenameBuffer.length);
+
+  header.writeUInt32LE(0x04034b50, 0);
+  header.writeUInt16LE(20, 4);
+  header.writeUInt16LE(ZIP_UTF8_FLAG, 6);
+  header.writeUInt16LE(0, 8);
+  header.writeUInt16LE(entry.dosTime, 10);
+  header.writeUInt16LE(entry.dosDate, 12);
+  header.writeUInt32LE(entry.crc32, 14);
+  header.writeUInt32LE(entry.size, 18);
+  header.writeUInt32LE(entry.size, 22);
+  header.writeUInt16LE(filenameBuffer.length, 26);
+  header.writeUInt16LE(0, 28);
+  filenameBuffer.copy(header, 30);
+
+  return header;
+};
+
+const createZipCentralHeader = (entry) => {
+  const filenameBuffer = Buffer.from(entry.zipPath, 'utf8');
+  const header = Buffer.alloc(46 + filenameBuffer.length);
+
+  header.writeUInt32LE(0x02014b50, 0);
+  header.writeUInt16LE(20, 4);
+  header.writeUInt16LE(20, 6);
+  header.writeUInt16LE(ZIP_UTF8_FLAG, 8);
+  header.writeUInt16LE(0, 10);
+  header.writeUInt16LE(entry.dosTime, 12);
+  header.writeUInt16LE(entry.dosDate, 14);
+  header.writeUInt32LE(entry.crc32, 16);
+  header.writeUInt32LE(entry.size, 20);
+  header.writeUInt32LE(entry.size, 24);
+  header.writeUInt16LE(filenameBuffer.length, 28);
+  header.writeUInt16LE(0, 30);
+  header.writeUInt16LE(0, 32);
+  header.writeUInt16LE(0, 34);
+  header.writeUInt16LE(0, 36);
+  header.writeUInt32LE(0, 38);
+  header.writeUInt32LE(entry.offset, 42);
+  filenameBuffer.copy(header, 46);
+
+  return header;
+};
+
+const createZipEndRecord = (entryCount, centralSize, centralOffset) => {
+  const record = Buffer.alloc(22);
+
+  record.writeUInt32LE(0x06054b50, 0);
+  record.writeUInt16LE(0, 4);
+  record.writeUInt16LE(0, 6);
+  record.writeUInt16LE(entryCount, 8);
+  record.writeUInt16LE(entryCount, 10);
+  record.writeUInt32LE(centralSize, 12);
+  record.writeUInt32LE(centralOffset, 16);
+  record.writeUInt16LE(0, 20);
+
+  return record;
+};
+
+const streamFileToResponse = (filePath, res) => new Promise((resolve, reject) => {
+  const stream = fs.createReadStream(filePath);
+
+  stream.on('data', (chunk) => {
+    if (!res.write(chunk)) {
+      stream.pause();
+      res.once('drain', () => stream.resume());
+    }
+  });
+  stream.on('end', resolve);
+  stream.on('error', reject);
+});
+
 const countUploadsByType = (sessionId, type, callback) => {
   const typeConfig = {
     audio: { extensions: AUDIO_EXTENSIONS, placeholders: audioExtensionPlaceholders },
@@ -1066,6 +1189,102 @@ app.get('/api/uploads', (req, res) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows || []);
   });
+});
+
+app.get('/api/uploads/photos.zip', (req, res) => {
+  if (req.get('x-admin-password') !== ADMIN_PASSWORD) {
+    return res.status(401).json({ error: 'Niet bevoegd' });
+  }
+
+  db.all(
+    `SELECT *
+     FROM uploads
+     WHERE media_type = 'photo'
+        OR (media_type IS NULL AND LOWER(filetype) IN (${photoExtensionPlaceholders}))
+     ORDER BY uploaded_at ASC`,
+    [...PHOTO_EXTENSIONS],
+    async (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+
+      try {
+        const usedNames = new Set();
+        const entries = [];
+
+        for (const row of rows || []) {
+          const storedFilename = path.basename(row.filepath || row.filename || '');
+          if (!storedFilename) continue;
+
+          const fullPath = path.join(uploadDir, storedFilename);
+          const stat = await fs.promises.stat(fullPath).catch(() => null);
+          if (!stat?.isFile()) continue;
+          if (stat.size > 0xffffffff) {
+            return res.status(500).json({ error: 'Een foto is te groot voor deze zip export' });
+          }
+
+          const guestName = sanitizeZipSegment(row.guest_name, 'Onbekend');
+          const uploadedDate = String(row.uploaded_at || '').slice(0, 10) || 'zonder-datum';
+          const safeFilename = sanitizeZipSegment(row.filename || storedFilename, `foto-${row.id}.${row.filetype || 'jpg'}`);
+          let zipPath = `fotos/${guestName}/${uploadedDate}-${row.id}-${safeFilename}`;
+          let duplicateIndex = 2;
+
+          while (usedNames.has(zipPath)) {
+            zipPath = `fotos/${guestName}/${uploadedDate}-${row.id}-${duplicateIndex}-${safeFilename}`;
+            duplicateIndex += 1;
+          }
+
+          usedNames.add(zipPath);
+          const crc32 = await calculateFileCrc32(fullPath);
+          const { date: dosDate, time: dosTime } = toDosDateTime(row.uploaded_at);
+
+          entries.push({
+            crc32,
+            dosDate,
+            dosTime,
+            fullPath,
+            size: stat.size,
+            zipPath
+          });
+        }
+
+        if (entries.length === 0) {
+          return res.status(404).json({ error: 'Geen foto\'s gevonden om te exporteren' });
+        }
+
+        let offset = 0;
+        for (const entry of entries) {
+          entry.offset = offset;
+          entry.localHeader = createZipLocalHeader(entry);
+          offset += entry.localHeader.length + entry.size;
+        }
+
+        const centralOffset = offset;
+        const centralHeaders = entries.map(createZipCentralHeader);
+        const centralSize = centralHeaders.reduce((total, header) => total + header.length, 0);
+        const endRecord = createZipEndRecord(entries.length, centralSize, centralOffset);
+        const contentLength = centralOffset + centralSize + endRecord.length;
+
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Disposition', 'attachment; filename="trouw-fotos.zip"');
+        res.setHeader('Content-Length', contentLength);
+        res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+
+        for (const entry of entries) {
+          res.write(entry.localHeader);
+          await streamFileToResponse(entry.fullPath, res);
+        }
+
+        for (const header of centralHeaders) {
+          res.write(header);
+        }
+
+        res.end(endRecord);
+      } catch (exportErr) {
+        console.error('Photo zip export error:', exportErr);
+        if (res.headersSent) return res.destroy(exportErr);
+        return res.status(500).json({ error: 'Foto export mislukt' });
+      }
+    }
+  );
 });
 
 app.delete('/api/uploads/:id', (req, res) => {

@@ -13,6 +13,7 @@ export default function AdminGallery({ adminPassword }) {
   const [deletingId, setDeletingId] = useState(null);
   const [deletingSongId, setDeletingSongId] = useState(null);
   const [deletingMessageId, setDeletingMessageId] = useState(null);
+  const [exportingPhotos, setExportingPhotos] = useState(false);
   const [message, setMessage] = useState('');
 
   const fetchUploads = useCallback(async () => {
@@ -80,6 +81,10 @@ export default function AdminGallery({ adminPassword }) {
     if (filter === 'audio') return uploadType === 'audio';
     return true;
   });
+  const photoUploads = uploads.filter(upload => {
+    const uploadType = getUploadType(upload);
+    return uploadType === 'photo' || uploadType === 'image';
+  });
 
   const handleDelete = async (upload) => {
     const confirmed = window.confirm(`Upload van ${upload.guest_name || 'onbekend'} verwijderen?`);
@@ -141,6 +146,34 @@ export default function AdminGallery({ adminPassword }) {
       console.error('Failed to delete text message:', error);
     } finally {
       setDeletingMessageId(null);
+    }
+  };
+
+  const handleExportPhotos = async () => {
+    setExportingPhotos(true);
+    setMessage('');
+
+    try {
+      const response = await axios.get(`${API_BASE}/uploads/photos.zip`, {
+        headers: { 'x-admin-password': adminPassword },
+        responseType: 'blob'
+      });
+      const blob = new Blob([response.data], { type: 'application/zip' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+
+      link.href = url;
+      link.download = 'trouw-fotos.zip';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      setMessage('Foto zip export gestart');
+    } catch (error) {
+      setMessage(`Foto export mislukt: ${error.response?.data?.error || error.message}`);
+      console.error('Failed to export photos:', error);
+    } finally {
+      setExportingPhotos(false);
     }
   };
 
@@ -214,8 +247,20 @@ export default function AdminGallery({ adminPassword }) {
         )}
       </section>
 
-      <h2>Galerij - Alle uploads</h2>
-      <p className="gallery-subtitle">{filteredUploads.length} bestanden</p>
+      <div className="gallery-header-row">
+        <div>
+          <h2>Galerij - Alle uploads</h2>
+          <p className="gallery-subtitle">{filteredUploads.length} bestanden</p>
+        </div>
+        <button
+          type="button"
+          className="export-zip-btn"
+          onClick={handleExportPhotos}
+          disabled={exportingPhotos || photoUploads.length === 0}
+        >
+          {exportingPhotos ? 'Zip maken...' : `Download foto's zip (${photoUploads.length})`}
+        </button>
+      </div>
       {message && <p className="gallery-message">{message}</p>}
 
       <div className="gallery-filters">
@@ -229,7 +274,7 @@ export default function AdminGallery({ adminPassword }) {
           className={`filter-btn ${filter === 'images' ? 'active' : ''}`}
           onClick={() => setFilter('images')}
         >
-          Foto's ({uploads.filter(u => getFileType(u.filename) === 'image').length})
+          Foto's ({photoUploads.length})
         </button>
         <button 
           className={`filter-btn ${filter === 'videos' ? 'active' : ''}`}
