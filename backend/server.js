@@ -1224,11 +1224,11 @@ app.get('/api/uploads/photos.zip', (req, res) => {
           const guestName = sanitizeZipSegment(row.guest_name, 'Onbekend');
           const uploadedDate = String(row.uploaded_at || '').slice(0, 10) || 'zonder-datum';
           const safeFilename = sanitizeZipSegment(row.filename || storedFilename, `foto-${row.id}.${row.filetype || 'jpg'}`);
-          let zipPath = `fotos/${guestName}/${uploadedDate}-${row.id}-${safeFilename}`;
+          let zipPath = `fotos/${uploadedDate}-${row.id}-${guestName}-${safeFilename}`;
           let duplicateIndex = 2;
 
           while (usedNames.has(zipPath)) {
-            zipPath = `fotos/${guestName}/${uploadedDate}-${row.id}-${duplicateIndex}-${safeFilename}`;
+            zipPath = `fotos/${uploadedDate}-${row.id}-${guestName}-${duplicateIndex}-${safeFilename}`;
             duplicateIndex += 1;
           }
 
@@ -1282,6 +1282,102 @@ app.get('/api/uploads/photos.zip', (req, res) => {
         console.error('Photo zip export error:', exportErr);
         if (res.headersSent) return res.destroy(exportErr);
         return res.status(500).json({ error: 'Foto export mislukt' });
+      }
+    }
+  );
+});
+
+app.get('/api/uploads/videos.zip', (req, res) => {
+  if (req.get('x-admin-password') !== ADMIN_PASSWORD) {
+    return res.status(401).json({ error: 'Niet bevoegd' });
+  }
+
+  db.all(
+    `SELECT *
+     FROM uploads
+     WHERE media_type = 'video'
+        OR (media_type IS NULL AND LOWER(filetype) IN (${videoExtensionPlaceholders}))
+     ORDER BY uploaded_at ASC`,
+    [...VIDEO_EXTENSIONS],
+    async (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+
+      try {
+        const usedNames = new Set();
+        const entries = [];
+
+        for (const row of rows || []) {
+          const storedFilename = path.basename(row.filepath || row.filename || '');
+          if (!storedFilename) continue;
+
+          const fullPath = path.join(uploadDir, storedFilename);
+          const stat = await fs.promises.stat(fullPath).catch(() => null);
+          if (!stat?.isFile()) continue;
+          if (stat.size > 0xffffffff) {
+            return res.status(500).json({ error: 'Een video is te groot voor deze zip export' });
+          }
+
+          const guestName = sanitizeZipSegment(row.guest_name, 'Onbekend');
+          const uploadedDate = String(row.uploaded_at || '').slice(0, 10) || 'zonder-datum';
+          const safeFilename = sanitizeZipSegment(row.filename || storedFilename, `video-${row.id}.${row.filetype || 'mp4'}`);
+          let zipPath = `videos/${uploadedDate}-${row.id}-${guestName}-${safeFilename}`;
+          let duplicateIndex = 2;
+
+          while (usedNames.has(zipPath)) {
+            zipPath = `videos/${uploadedDate}-${row.id}-${guestName}-${duplicateIndex}-${safeFilename}`;
+            duplicateIndex += 1;
+          }
+
+          usedNames.add(zipPath);
+          const crc32 = await calculateFileCrc32(fullPath);
+          const { date: dosDate, time: dosTime } = toDosDateTime(row.uploaded_at);
+
+          entries.push({
+            crc32,
+            dosDate,
+            dosTime,
+            fullPath,
+            size: stat.size,
+            zipPath
+          });
+        }
+
+        if (entries.length === 0) {
+          return res.status(404).json({ error: 'Geen video\'s gevonden om te exporteren' });
+        }
+
+        let offset = 0;
+        for (const entry of entries) {
+          entry.offset = offset;
+          entry.localHeader = createZipLocalHeader(entry);
+          offset += entry.localHeader.length + entry.size;
+        }
+
+        const centralOffset = offset;
+        const centralHeaders = entries.map(createZipCentralHeader);
+        const centralSize = centralHeaders.reduce((total, header) => total + header.length, 0);
+        const endRecord = createZipEndRecord(entries.length, centralSize, centralOffset);
+        const contentLength = centralOffset + centralSize + endRecord.length;
+
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Disposition', 'attachment; filename="trouw-videos.zip"');
+        res.setHeader('Content-Length', contentLength);
+        res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+
+        for (const entry of entries) {
+          res.write(entry.localHeader);
+          await streamFileToResponse(entry.fullPath, res);
+        }
+
+        for (const header of centralHeaders) {
+          res.write(header);
+        }
+
+        res.end(endRecord);
+      } catch (exportErr) {
+        console.error('Video zip export error:', exportErr);
+        if (res.headersSent) return res.destroy(exportErr);
+        return res.status(500).json({ error: 'Video export mislukt' });
       }
     }
   );

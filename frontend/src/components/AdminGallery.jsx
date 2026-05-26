@@ -14,6 +14,7 @@ export default function AdminGallery({ adminPassword }) {
   const [deletingSongId, setDeletingSongId] = useState(null);
   const [deletingMessageId, setDeletingMessageId] = useState(null);
   const [exportingPhotos, setExportingPhotos] = useState(false);
+  const [exportingVideos, setExportingVideos] = useState(false);
   const [message, setMessage] = useState('');
 
   const fetchUploads = useCallback(async () => {
@@ -85,6 +86,7 @@ export default function AdminGallery({ adminPassword }) {
     const uploadType = getUploadType(upload);
     return uploadType === 'photo' || uploadType === 'image';
   });
+  const videoUploads = uploads.filter(upload => getUploadType(upload) === 'video');
 
   const handleDelete = async (upload) => {
     const confirmed = window.confirm(`Upload van ${upload.guest_name || 'onbekend'} verwijderen?`);
@@ -177,6 +179,34 @@ export default function AdminGallery({ adminPassword }) {
     }
   };
 
+  const handleExportVideos = async () => {
+    setExportingVideos(true);
+    setMessage('');
+
+    try {
+      const response = await axios.get(`${API_BASE}/uploads/videos.zip`, {
+        headers: { 'x-admin-password': adminPassword },
+        responseType: 'blob'
+      });
+      const blob = new Blob([response.data], { type: 'application/zip' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+
+      link.href = url;
+      link.download = 'trouw-videos.zip';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      setMessage('Video zip export gestart');
+    } catch (error) {
+      setMessage(`Video export mislukt: ${error.response?.data?.error || error.message}`);
+      console.error('Failed to export videos:', error);
+    } finally {
+      setExportingVideos(false);
+    }
+  };
+
   return (
     <div className="admin-gallery">
       <section className="admin-song-panel">
@@ -252,14 +282,24 @@ export default function AdminGallery({ adminPassword }) {
           <h2>Galerij - Alle uploads</h2>
           <p className="gallery-subtitle">{filteredUploads.length} bestanden</p>
         </div>
-        <button
-          type="button"
-          className="export-zip-btn"
-          onClick={handleExportPhotos}
-          disabled={exportingPhotos || photoUploads.length === 0}
-        >
-          {exportingPhotos ? 'Zip maken...' : `Download foto's zip (${photoUploads.length})`}
-        </button>
+        <div className="export-zip-actions">
+          <button
+            type="button"
+            className="export-zip-btn"
+            onClick={handleExportPhotos}
+            disabled={exportingPhotos || photoUploads.length === 0}
+          >
+            {exportingPhotos ? 'Foto zip maken...' : `Download foto's zip (${photoUploads.length})`}
+          </button>
+          <button
+            type="button"
+            className="export-zip-btn"
+            onClick={handleExportVideos}
+            disabled={exportingVideos || videoUploads.length === 0}
+          >
+            {exportingVideos ? 'Video zip maken...' : `Download video's zip (${videoUploads.length})`}
+          </button>
+        </div>
       </div>
       {message && <p className="gallery-message">{message}</p>}
 
@@ -280,7 +320,7 @@ export default function AdminGallery({ adminPassword }) {
           className={`filter-btn ${filter === 'videos' ? 'active' : ''}`}
           onClick={() => setFilter('videos')}
         >
-          Video's ({uploads.filter(u => getUploadType(u) === 'video').length})
+          Video's ({videoUploads.length})
         </button>
         <button
           className={`filter-btn ${filter === 'audio' ? 'active' : ''}`}
