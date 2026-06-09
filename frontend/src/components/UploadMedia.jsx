@@ -13,7 +13,6 @@ export default function UploadMedia({ guestName }) {
   const [sessionId] = useState(getUploadSessionId);
   const [remainingUploads, setRemainingUploads] = useState(MAX_UPLOADS);
   const [uploadedPhotos, setUploadedPhotos] = useState([]);
-  const [deletingPhotoId, setDeletingPhotoId] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -81,13 +80,13 @@ export default function UploadMedia({ guestName }) {
 
     if (!cleanGuestName) {
       alert('Vul eerst je naam in voordat je foto\'s selecteert.');
-      setMessage('⚠️ Vul eerst je naam in');
+      setMessage('Vul eerst je naam in.');
       e.target.value = '';
       return;
     }
     
     if (remainingUploads <= 0) {
-      setMessage('⚠️ Je hebt al 5 foto\'s geupload');
+      setMessage('Je hebt het maximum van 5 foto\'s bereikt.');
       e.target.value = '';
       return;
     }
@@ -97,7 +96,7 @@ export default function UploadMedia({ guestName }) {
     const invalidFiles = selectedFiles.filter(f => !validTypes.includes(f.type));
 
     if (invalidFiles.length > 0) {
-      setMessage('❌ Alleen foto\'s (JPG, PNG, GIF) toegestaan');
+      setMessage('Alleen foto\'s in JPG, PNG of GIF zijn toegestaan.');
       e.target.value = '';
       return;
     }
@@ -107,13 +106,13 @@ export default function UploadMedia({ guestName }) {
     const allowedNewFileCount = remainingUploads - files.length;
 
     if (allowedNewFileCount <= 0) {
-      setMessage(`⚠️ Je hebt al ${files.length} foto${files.length === 1 ? '' : '\'s'} geselecteerd`);
+      setMessage(`Je hebt al ${files.length} foto${files.length === 1 ? '' : '\'s'} geselecteerd.`);
       e.target.value = '';
       return;
     }
 
     if (uniqueNewFiles.length > allowedNewFileCount) {
-      setMessage(`⚠️ Je kunt nog maar ${allowedNewFileCount} extra foto${allowedNewFileCount === 1 ? '' : '\'s'} selecteren`);
+      setMessage(`Je kunt nog ${allowedNewFileCount} extra foto${allowedNewFileCount === 1 ? '' : '\'s'} selecteren.`);
       e.target.value = '';
       return;
     }
@@ -128,12 +127,12 @@ export default function UploadMedia({ guestName }) {
 
     if (!cleanGuestName) {
       alert('Vul eerst je naam in voordat je uploadt.');
-      setMessage('⚠️ Vul eerst je naam in');
+      setMessage('Vul eerst je naam in.');
       return;
     }
 
     if (files.length === 0) {
-      setMessage('⚠️ Selecteer eerst bestanden');
+      setMessage('Selecteer eerst een foto.');
       return;
     }
 
@@ -154,7 +153,7 @@ export default function UploadMedia({ guestName }) {
         }
       });
 
-      setMessage(`✅ ${response.data.message}`);
+      setMessage(response.data.message);
       setRemainingUploads(response.data.remaining);
       if (response.data.photos) {
         setUploadedPhotos(response.data.photos);
@@ -168,41 +167,18 @@ export default function UploadMedia({ guestName }) {
         setMessage('');
       }, 3000);
     } catch (error) {
-      setMessage(`❌ Upload mislukt: ${error.response?.data?.error || error.message}`);
+      setMessage(`Upload mislukt: ${error.response?.data?.error || error.message}`);
       console.error('Upload error:', error);
     } finally {
       setUploading(false);
     }
   };
 
-  const handleDeletePhoto = async (photo) => {
-    const confirmed = window.confirm('Deze foto verwijderen zodat je een nieuwe kunt toevoegen?');
-    if (!confirmed) return;
-
-    setDeletingPhotoId(photo.id);
-    setMessage('');
-
-    try {
-      const response = await axios.delete(`${API_BASE}/uploads/${photo.id}/mine`, {
-        data: { sessionId }
-      });
-
-      setUploadedPhotos((currentPhotos) => currentPhotos.filter((item) => item.id !== photo.id));
-      setRemainingUploads(response.data.remaining);
-      setMessage('Foto verwijderd, je kunt nu een nieuwe toevoegen');
-    } catch (error) {
-      setMessage(`Verwijderen mislukt: ${error.response?.data?.error || error.message}`);
-      console.error('Delete photo error:', error);
-    } finally {
-      setDeletingPhotoId(null);
-    }
-  };
-
   return (
     <div className="upload-media">
       <div className="upload-box">
-        <h3>Upload je foto's</h3>
-        <p className="upload-hint">Nog {remainingUploads} van {MAX_UPLOADS} foto's beschikbaar</p>
+        <h2>Foto uploaden</h2>
+        <p className="upload-hint">Nog {remainingUploads} van {MAX_UPLOADS} foto's beschikbaar.</p>
 
         <input
           type="file"
@@ -233,11 +209,11 @@ export default function UploadMedia({ guestName }) {
               if (!guestName.trim()) {
                 e.preventDefault();
                 alert('Vul eerst je naam in voordat je een foto maakt.');
-                setMessage('⚠️ Vul eerst je naam in');
+                setMessage('Vul eerst je naam in.');
               }
             }}
           >
-            Maak foto
+            Foto maken
           </label>
 
           <label
@@ -248,17 +224,17 @@ export default function UploadMedia({ guestName }) {
               if (!guestName.trim()) {
                 e.preventDefault();
                 alert('Vul eerst je naam in voordat je foto\'s selecteert.');
-                setMessage('⚠️ Vul eerst je naam in');
+                setMessage('Vul eerst je naam in.');
               }
             }}
           >
-            Kies foto's
+            Foto kiezen
           </label>
         </div>
 
         {files.length > 0 && (
           <div className="file-list">
-            <h4>Geselecteerde bestanden:</h4>
+            <h3>Geselecteerd</h3>
             <ul>
               {Array.from(files).map((file, idx) => (
                 <li key={idx}>
@@ -274,16 +250,16 @@ export default function UploadMedia({ guestName }) {
           disabled={uploading || files.length === 0 || remainingUploads <= 0 || !guestName.trim()}
           className="upload-btn"
         >
-          {uploading ? `Uploading... ${progress}%` : 'Upload'}
+          {uploading ? `Bezig met uploaden... ${progress}%` : 'Foto verzenden'}
         </button>
 
         {message && <p className="message">{message}</p>}
       </div>
 
       <div className="upload-box own-photos-box">
-        <h3>Jouw geüploade foto's</h3>
+        <h2>Toegevoegde foto's</h2>
         <p className="upload-hint">
-          Wil je toch een betere foto kiezen? Verwijder eerst een foto en upload daarna een nieuwe.
+          Hier zie je de foto's die je vanaf dit toestel hebt toegevoegd.
         </p>
 
         {uploadedPhotos.length > 0 ? (
@@ -295,14 +271,6 @@ export default function UploadMedia({ guestName }) {
                   alt={photo.originalname || 'Geüploade foto'}
                   loading="lazy"
                 />
-                <button
-                  type="button"
-                  className="delete-upload-btn own-photo-delete"
-                  onClick={() => handleDeletePhoto(photo)}
-                  disabled={deletingPhotoId === photo.id}
-                >
-                  {deletingPhotoId === photo.id ? '...' : 'Verwijder'}
-                </button>
               </div>
             ))}
           </div>
