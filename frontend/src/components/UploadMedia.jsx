@@ -13,6 +13,7 @@ export default function UploadMedia({ guestName }) {
   const [sessionId] = useState(getUploadSessionId);
   const [remainingUploads, setRemainingUploads] = useState(MAX_UPLOADS);
   const [uploadedPhotos, setUploadedPhotos] = useState([]);
+  const [deletingPhotoId, setDeletingPhotoId] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -122,6 +123,11 @@ export default function UploadMedia({ guestName }) {
     e.target.value = '';
   };
 
+  const handleRemoveSelectedFile = (fileToRemove) => {
+    setFiles((currentFiles) => currentFiles.filter((file) => getFileKey(file) !== getFileKey(fileToRemove)));
+    setMessage('');
+  };
+
   const handleUpload = async () => {
     const cleanGuestName = guestName.trim().replace(/\s+/g, ' ');
 
@@ -171,6 +177,29 @@ export default function UploadMedia({ guestName }) {
       console.error('Upload error:', error);
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleDeletePhoto = async (photo) => {
+    const confirmed = window.confirm('Deze foto verwijderen zodat je een andere kunt kiezen?');
+    if (!confirmed) return;
+
+    setDeletingPhotoId(photo.id);
+    setMessage('');
+
+    try {
+      const response = await axios.delete(`${API_BASE}/uploads/${photo.id}/mine`, {
+        data: { sessionId }
+      });
+
+      setUploadedPhotos((currentPhotos) => currentPhotos.filter((item) => item.id !== photo.id));
+      setRemainingUploads(response.data.remaining);
+      setMessage('Foto verwijderd. Je kunt nu een andere foto toevoegen.');
+    } catch (error) {
+      setMessage(`Foto verwijderen mislukt: ${error.response?.data?.error || error.message}`);
+      console.error('Delete photo error:', error);
+    } finally {
+      setDeletingPhotoId(null);
     }
   };
 
@@ -238,7 +267,15 @@ export default function UploadMedia({ guestName }) {
             <ul>
               {Array.from(files).map((file, idx) => (
                 <li key={idx}>
-                  {file.name}
+                  <span>{file.name}</span>
+                  <button
+                    type="button"
+                    className="remove-selected-btn"
+                    onClick={() => handleRemoveSelectedFile(file)}
+                    disabled={uploading}
+                  >
+                    Verwijder
+                  </button>
                 </li>
               ))}
             </ul>
@@ -271,6 +308,14 @@ export default function UploadMedia({ guestName }) {
                   alt={photo.originalname || 'Geüploade foto'}
                   loading="lazy"
                 />
+                <button
+                  type="button"
+                  className="own-photo-change-btn"
+                  onClick={() => handleDeletePhoto(photo)}
+                  disabled={deletingPhotoId === photo.id}
+                >
+                  {deletingPhotoId === photo.id ? 'Verwijderen...' : 'Andere foto kiezen'}
+                </button>
               </div>
             ))}
           </div>

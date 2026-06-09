@@ -85,6 +85,10 @@ input {
   margin: 0;
 }
 
+.intro-text p + p {
+  margin-top: 10px;
+}
+
 .guest-name-panel,
 .upload-box {
   background: var(--panel);
@@ -215,9 +219,36 @@ input {
 }
 
 .file-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   overflow-wrap: anywhere;
   color: var(--muted);
   font-size: 0.92rem;
+}
+
+.file-list li span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.remove-selected-btn {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 0 10px;
+  color: #b42318;
+  background: #fff5f5;
+  border: 1px solid #fecdca;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.remove-selected-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .upload-btn {
@@ -265,6 +296,7 @@ input {
 }
 
 .own-photo-item {
+  position: relative;
   overflow: hidden;
   aspect-ratio: 1;
   background: #f2f4f7;
@@ -277,6 +309,32 @@ input {
   height: 100%;
   display: block;
   object-fit: cover;
+}
+
+.own-photo-change-btn {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  min-height: 38px;
+  padding: 0 10px;
+  color: #ffffff;
+  background: rgba(36, 41, 47, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 8px;
+  font-size: 0.84rem;
+  font-weight: 800;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+}
+
+.own-photo-change-btn:hover:not(:disabled) {
+  background: var(--dia-orange);
+}
+
+.own-photo-change-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 .own-photo-empty {

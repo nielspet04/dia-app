@@ -54,11 +54,21 @@ function App() {
           alt="DIA Arcadia Damiaaninstituut Aarschot"
         />
         <p className="hero-kicker">Damiaaninstituut Aarschot</p>
-        <h1>Foto toevoegen</h1>
+        <h1>Deel jouw mooiste herinneringen! 📸</h1>
         <div className="intro-text">
           <p>
-            Upload eenvoudig een foto voor DIA Arcadia. Vul je naam in, kies een foto
-            en verzend ze veilig naar de schoolgalerij.
+            Tijdens de proclamatie van de zesdejaars op 25 juni willen we samen
+            terugblikken op alle mooie momenten van de voorbije schooljaren.
+            Daarom vragen we jullie om jullie leukste foto's te uploaden via dit formulier.
+          </p>
+          <p>
+            Denk aan foto's van uitstappen, activiteiten, projecten, klasmomenten,
+            vrienden of andere herinneringen die voor jou bijzonder zijn. Een selectie
+            van de ingezonden foto's wordt getoond tijdens de proclamatie.
+          </p>
+          <p>
+            Alvast bedankt voor jullie bijdrage en veel plezier met het herbeleven
+            van deze mooie herinneringen! 🎓✨
           </p>
         </div>
       </header>
