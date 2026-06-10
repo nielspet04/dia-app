@@ -43,7 +43,9 @@ export default function AdminGallery({ adminPassword }) {
     setMessage('');
 
     try {
-      await axios.delete(`${API_BASE}/uploads/${upload.id}`, {
+      await axios.post(`${API_BASE}/uploads/${upload.id}/hide`, {
+        adminPassword
+      }, {
         headers: { 'x-admin-password': adminPassword }
       });
       setUploads((currentUploads) => currentUploads.filter((item) => item.id !== upload.id));

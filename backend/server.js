@@ -77,6 +77,9 @@ const getFileExtension = (filename) => path.extname(filename).slice(1).toLowerCa
 const isPhotoFile = (file) => file.mimetype.startsWith('image/') && PHOTO_EXTENSIONS.includes(getFileExtension(file.originalname));
 const isVideoFile = (file) => file.mimetype.startsWith('video/') && VIDEO_EXTENSIONS.includes(getFileExtension(file.originalname));
 const isAudioFile = (file) => file.mimetype.startsWith('audio/') && AUDIO_EXTENSIONS.includes(getFileExtension(file.originalname));
+const isAdminRequest = (req) => (
+  req.get('x-admin-password') === ADMIN_PASSWORD || req.body?.adminPassword === ADMIN_PASSWORD
+);
 const crcTable = Array.from({ length: 256 }, (_, index) => {
   let crc = index;
   for (let bit = 0; bit < 8; bit += 1) {
@@ -1192,15 +1195,16 @@ app.get('/api/uploads', (req, res) => {
 });
 
 app.get('/api/uploads/photos.zip', (req, res) => {
-  if (req.get('x-admin-password') !== ADMIN_PASSWORD) {
+  if (!isAdminRequest(req)) {
     return res.status(401).json({ error: 'Niet bevoegd' });
   }
 
   db.all(
     `SELECT *
      FROM uploads
-     WHERE media_type = 'photo'
-        OR (media_type IS NULL AND LOWER(filetype) IN (${photoExtensionPlaceholders}))
+     WHERE COALESCE(guest_removed, 0) = 0
+       AND (media_type = 'photo'
+        OR (media_type IS NULL AND LOWER(filetype) IN (${photoExtensionPlaceholders})))
      ORDER BY uploaded_at ASC`,
     [...PHOTO_EXTENSIONS],
     async (err, rows) => {
@@ -1288,7 +1292,7 @@ app.get('/api/uploads/photos.zip', (req, res) => {
 });
 
 app.get('/api/uploads/videos.zip', (req, res) => {
-  if (req.get('x-admin-password') !== ADMIN_PASSWORD) {
+  if (!isAdminRequest(req)) {
     return res.status(401).json({ error: 'Niet bevoegd' });
   }
 
@@ -1384,7 +1388,7 @@ app.get('/api/uploads/videos.zip', (req, res) => {
 });
 
 app.delete('/api/uploads/:id', (req, res) => {
-  if (req.get('x-admin-password') !== ADMIN_PASSWORD) {
+  if (!isAdminRequest(req)) {
     return res.status(401).json({ error: 'Niet bevoegd' });
   }
 
@@ -1404,10 +1408,28 @@ app.delete('/api/uploads/:id', (req, res) => {
       console.error('Failed to delete upload file, removing database row anyway:', fileErr);
     }
 
-    db.run('DELETE FROM uploads WHERE id = ?', [uploadId], (deleteErr) => {
+    db.run('UPDATE uploads SET guest_removed = 1 WHERE id = ?', [uploadId], (deleteErr) => {
       if (deleteErr) return res.status(500).json({ error: deleteErr.message });
-      res.json({ success: true, message: 'Foto verwijderd' });
+      res.json({ success: true, message: 'Foto verborgen uit admin en slideshow' });
     });
+  });
+});
+
+app.post('/api/uploads/:id/hide', (req, res) => {
+  if (!isAdminRequest(req)) {
+    return res.status(401).json({ error: 'Niet bevoegd' });
+  }
+
+  const uploadId = Number(req.params.id);
+
+  if (!Number.isInteger(uploadId)) {
+    return res.status(400).json({ error: 'Ongeldig upload id' });
+  }
+
+  db.run('UPDATE uploads SET guest_removed = 1 WHERE id = ?', [uploadId], function hideUpload(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    if (this.changes === 0) return res.status(404).json({ error: 'Upload niet gevonden' });
+    res.json({ success: true, message: 'Foto verborgen uit admin en slideshow' });
   });
 });
 
