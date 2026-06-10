@@ -19,7 +19,7 @@ const MAX_AUDIO_UPLOADS_PER_SESSION = 1;
 const MAX_GUEST_NAME_LENGTH = 80;
 const MAX_TEXT_MESSAGE_LENGTH = 800;
 const MAX_UPLOAD_SIZE_MB = Number(process.env.MAX_UPLOAD_SIZE_MB || 250);
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'DiaInstituut123';
+const ADMIN_PASSWORD = 'DiaInstituut123';
 const PHOTO_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif'];
 const VIDEO_EXTENSIONS = ['mp4', 'mov', 'webm'];
 const AUDIO_EXTENSIONS = ['webm', 'm4a', 'mp3', 'wav', 'ogg'];
@@ -1401,8 +1401,7 @@ app.delete('/api/uploads/:id', (req, res) => {
     try {
       await removeUploadFile(uploadRow.filepath);
     } catch (fileErr) {
-      console.error('Failed to delete upload file:', fileErr);
-      return res.status(500).json({ error: 'Bestand verwijderen mislukt' });
+      console.error('Failed to delete upload file, removing database row anyway:', fileErr);
     }
 
     db.run('DELETE FROM uploads WHERE id = ?', [uploadId], (deleteErr) => {
